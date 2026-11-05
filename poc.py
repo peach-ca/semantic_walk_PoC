@@ -17,15 +17,16 @@ import json
 import math
 import os
 import sys
+import time
 
 import folium
 import networkx as nx
 import osmnx as ox
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 from pydantic import BaseModel
 
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 WALK_KMH = 4.8
 MAX_CANDIDATES = 60
 TOP_K = 6
@@ -58,16 +59,25 @@ client = genai.Client()
 
 
 def ask(prompt: str, schema):
-    res = client.models.generate_content(
-        model=MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=schema,
-            temperature=0.4,
-        ),
-    )
-    return res.parsed
+    """混雑（503）や回数制限（429）のときは待ち時間を伸ばしながら再試行する"""
+    for attempt in range(5):
+        try:
+            res = client.models.generate_content(
+                model=MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    temperature=0.4,
+                ),
+            )
+            return res.parsed
+        except (errors.ServerError, errors.ClientError) as e:
+            if e.code not in (429, 503) or attempt == 4:
+                raise
+            wait = 5 * 2 ** attempt  # 5, 10, 20, 40秒
+            print(f"  Gemini が混雑中（{e.code}）。{wait}秒後に再試行します")
+            time.sleep(wait)
 
 
 # ---------- 1. 概念の展開 ----------
