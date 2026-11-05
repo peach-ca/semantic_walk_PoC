@@ -1,15 +1,14 @@
 """概念散歩ルート PoC（ローカル実行）
 
-概念（例: ノスタルジー）と出発地を入れると、
-1. Gemini が概念を「具体的な風景の特徴」と OSM タグに展開し
-2. OpenStreetMap から近くの候補地を集め
-3. Gemini が各候補を概念との合致度で採点し
-4. 上位の地点を徒歩で回る周回ルートを作り
+周辺に実在する場所を先に集め、その中で概念を解釈して立ち寄り先を選ぶ。
+1. OpenStreetMap から周辺の名前付きの場所を幅広く集める（場所ごとに固定の問い合わせ → キャッシュが効く）
+2. 種類ごとに件数を抑えて偏りをなくす
+3. Gemini が「この街ならではの概念の感じ方」を解釈し、合う場所を選んで理由を付ける（呼び出しは1回）
+4. 選ばれた地点を徒歩で回る周回ルートを作る
 5. 地図 HTML に出力する
 
 使い方:
-  export GEMINI_API_KEY=...
-  uv run poc.py --concept ノスタルジー --lat 35.0 --lon 135.0 --minutes 45
+  uv run --env-file .env poc.py --concept ノスタルジー --lat 35.0 --lon 135.0 --minutes 45
 """
 
 import argparse
@@ -35,42 +34,49 @@ MODELS = list(dict.fromkeys([
     "gemini-flash-lite-latest",
     "gemini-3.5-flash",
 ]))
+
 WALK_KMH = 4.8
+PER_KIND = 6        # 1種類あたりの上限（飲食店などで埋め尽くされないように）
+MAX_INVENTORY = 150  # Gemini に渡す最大件数
 
 # Overpass（OSM のデータ取得）の公開サーバー。混雑していたら次を試す
 OVERPASS_URLS = [
     "https://overpass-api.de/api",
-    "https://overpass.kumi.systems/api",
-    "https://overpass.private.coffee/api",
     "https://maps.mail.ru/osm/tools/overpass/api",
+    "https://overpass.kumi.systems/api",
 ]
 ox.settings.overpass_rate_limit = False  # サーバー状態の確認による待機をしない
-ox.settings.requests_timeout = 90
-MAX_CANDIDATES = 60
-TOP_K = 6
+ox.settings.requests_timeout = 30
+
+# 周辺を見渡すための固定のタグ。概念に関係なく毎回同じなのでキャッシュが効く
+INVENTORY_TAGS = {
+    "historic": True,
+    "tourism": ["attraction", "museum", "gallery", "artwork", "viewpoint"],
+    "amenity": ["cafe", "place_of_worship", "public_bath", "library", "theatre",
+                "arts_centre", "marketplace", "fountain", "bar", "pub",
+                "restaurant", "fast_food", "clock"],
+    "leisure": ["park", "garden", "playground"],
+    "man_made": ["bridge", "tower", "water_tower", "lighthouse"],
+    "railway": ["station"],
+    "natural": ["water", "tree_row", "wood"],
+    "craft": True,
+    "shop": True,
+}
+KIND_KEYS = ["historic", "tourism", "amenity", "leisure", "man_made",
+             "railway", "natural", "craft", "shop"]
 
 
-# ---------- Gemini の出力スキーマ ----------
+# ---------- Gemini ----------
 
-class OsmTag(BaseModel):
-    key: str
-    value: str  # "*" は値を問わない
-    why: str
-
-
-class Expansion(BaseModel):
-    features: list[str]  # 概念を感じられる具体的な風景の特徴
-    tags: list[OsmTag]
-
-
-class Score(BaseModel):
+class Pick(BaseModel):
     id: int
     score: int  # 0-10
     reason: str
 
 
-class Scores(BaseModel):
-    items: list[Score]
+class Selection(BaseModel):
+    interpretation: str  # この街での概念の解釈
+    picks: list[Pick]
 
 
 client = genai.Client()
@@ -81,7 +87,7 @@ def ask(prompt: str, schema):
 
     入れ子のスキーマを response_schema で渡すと 503 が続いたため、
     スキーマはプロンプトに書き、検証は pydantic で行う。
-    混雑（503）や回数制限（429）のときは待ち時間を伸ばしながら再試行する。
+    503（混雑）や 429（回数制限）のときは別のモデルに切り替える。
     """
     full_prompt = (
         prompt
@@ -111,37 +117,7 @@ def ask(prompt: str, schema):
     raise last_error
 
 
-# ---------- 1. 概念の展開 ----------
-
-def expand_concept(concept: str) -> Expansion:
-    prompt = f"""散歩で「{concept}」という概念を感じたい人がいる。
-1. この概念を感じられる具体的な風景や場所の特徴を5〜8個挙げて。
-2. それらに当てはまる場所を OpenStreetMap で探すためのタグを最大8個挙げて。
-   - key は amenity, shop, historic, tourism, leisure, natural, man_made, craft など
-   - value は具体的な値。値を問わない場合は "*"
-   - building=* や highway=* のように広すぎるタグは使わない
-   - why にはそのタグを選んだ理由を一言で書く
-"""
-    return ask(prompt, Expansion)
-
-
-def to_osm_tags(tags: list[OsmTag]) -> dict:
-    merged: dict = {}
-    for t in tags:
-        v = True if t.value == "*" else t.value
-        if t.key not in merged:
-            merged[t.key] = v
-            continue
-        cur = merged[t.key]
-        if cur is True or v is True:
-            merged[t.key] = True
-        else:
-            vals = cur if isinstance(cur, list) else [cur]
-            merged[t.key] = sorted(set(vals + [v]))
-    return merged
-
-
-# ---------- 2. 候補地の収集 ----------
+# ---------- 1-2. 周辺の場所を集める ----------
 
 def haversine_m(lat1, lon1, lat2, lon2) -> float:
     r = 6371000
@@ -166,53 +142,72 @@ def overpass_call(fn, *args, **kwargs):
     raise last_error
 
 
-def fetch_candidates(lat, lon, radius, osm_tags) -> list[dict]:
+def fetch_inventory(lat, lon, radius) -> list[dict]:
+    """周辺の名前付きの場所を集め、種類ごとに近い順で上限まで残す"""
     try:
-        gdf = overpass_call(ox.features_from_point, (lat, lon), tags=osm_tags, dist=radius)
+        gdf = overpass_call(ox.features_from_point, (lat, lon), tags=INVENTORY_TAGS, dist=radius)
     except InsufficientResponseError:
-        print("  条件に合う場所が OSM にありませんでした")
+        print("  周辺に名前付きの場所が見つかりませんでした")
         return []
 
-    seen, cands = set(), []
+    seen, items = set(), []
     for _, row in gdf.iterrows():
         name = row.get("name")
         if not isinstance(name, str) or name in seen:
             continue
+        kind = None
+        for key in KIND_KEYS:
+            v = row.get(key)
+            if isinstance(v, str):
+                kind = f"{key}={v}"
+                break
+        if kind is None:
+            continue
         seen.add(name)
         pt = row.geometry.representative_point()
-        tag_info = {k: row[k] for k in osm_tags if k in row and isinstance(row[k], str)}
-        cands.append({
+        items.append({
             "name": name,
+            "kind": kind,
             "lat": pt.y,
             "lon": pt.x,
-            "tags": tag_info,
             "dist": haversine_m(lat, lon, pt.y, pt.x),
         })
-    cands.sort(key=lambda c: c["dist"])
-    cands = cands[:MAX_CANDIDATES]
-    for i, c in enumerate(cands):
-        c["id"] = i
-    return cands
+
+    items.sort(key=lambda it: it["dist"])
+    counts, picked = {}, []
+    for it in items:
+        n = counts.get(it["kind"], 0)
+        if n < PER_KIND:
+            picked.append(it)
+            counts[it["kind"]] = n + 1
+    picked = picked[:MAX_INVENTORY]
+    for i, it in enumerate(picked):
+        it["id"] = i
+    return picked
 
 
-# ---------- 3. 採点 ----------
+# ---------- 3. 概念を解釈して選ぶ ----------
 
-def score_candidates(concept: str, features: list[str], cands: list[dict]) -> list[dict]:
-    listing = [{"id": c["id"], "name": c["name"], "tags": c["tags"]} for c in cands]
-    prompt = f"""散歩で「{concept}」を感じたい人のために、立ち寄り先を選んでいる。
-この概念を感じられる風景の特徴: {", ".join(features)}
+def choose_places(concept: str, inventory: list[dict]):
+    listing = [{"id": it["id"], "name": it["name"], "kind": it["kind"]} for it in inventory]
+    prompt = f"""散歩で「{concept}」という概念を感じたい人がいる。
+以下は出発地の周辺に実在する場所の一覧（名前と OpenStreetMap の種類）。
 
-次の候補それぞれについて、名前とタグから「{concept}」をどれだけ感じられそうかを
-0〜10で厳しめに採点し、理由を日本語で一言書いて。チェーン店らしいものは低くする。
+1. 一覧を眺めて、この街ならではの「{concept}」の感じ方を2〜3文で解釈して（interpretation）。
+   定番の連想を押し付けず、この街に実際にあるものから考える。
+2. その解釈に合う場所を最大8か所選び、0〜10で合致度を付け、
+   なぜそう感じられるかを日本語で一言書いて（picks）。チェーン店らしいものは選ばない。
 
 {json.dumps(listing, ensure_ascii=False)}
 """
-    scores = {s.id: s for s in ask(prompt, Scores).items}
-    for c in cands:
-        s = scores.get(c["id"])
-        c["score"] = s.score if s else 0
-        c["reason"] = s.reason if s else ""
-    return sorted(cands, key=lambda c: c["score"], reverse=True)
+    sel = ask(prompt, Selection)
+    by_id = {it["id"]: it for it in inventory}
+    ranked = []
+    for p in sorted(sel.picks, key=lambda p: p.score, reverse=True):
+        it = by_id.get(p.id)
+        if it:
+            ranked.append({**it, "score": p.score, "reason": p.reason})
+    return sel.interpretation, ranked
 
 
 # ---------- 4. 徒歩ルート ----------
@@ -265,7 +260,12 @@ def plan_route(lat, lon, radius, stops, max_m):
         stops.remove(min(stops, key=lambda s: s["score"]))
 
 
-# ---------- 5. 地図出力 ----------
+def search_radius(minutes: int) -> int:
+    max_m = minutes / 60 * WALK_KMH * 1000
+    return int(min(max(max_m / 3, 400), 1500))
+
+
+# ---------- 5. 地図出力（CLI 用） ----------
 
 def render(concept, start, order, coords, total, out):
     m = folium.Map(location=[start["lat"], start["lon"]], zoom_start=16)
@@ -299,29 +299,24 @@ def main():
     args = ap.parse_args()
 
     max_m = args.minutes / 60 * WALK_KMH * 1000
-    radius = int(min(max(max_m / 3, 400), 1500))
+    radius = search_radius(args.minutes)
 
-    print(f"[1/4] 概念を展開中: {args.concept}")
-    exp = expand_concept(args.concept)
-    print("  特徴:", " / ".join(exp.features))
-    for t in exp.tags:
-        print(f"  タグ: {t.key}={t.value}  ({t.why})")
+    print(f"[1/3] 半径{radius}mの周辺の場所を取得中")
+    inventory = fetch_inventory(args.lat, args.lon, radius)
+    print(f"  {len(inventory)} 件")
+    if not inventory:
+        sys.exit("周辺の場所がありません。出発地を変えて試してください。")
 
-    print(f"[2/4] 半径{radius}mの候補地を取得中")
-    cands = fetch_candidates(args.lat, args.lon, radius, to_osm_tags(exp.tags))
-    print(f"  候補 {len(cands)} 件")
-    if not cands:
-        sys.exit("候補地がありません。出発地か概念を変えて試してください。")
-
-    print("[3/4] 合致度を採点中")
-    ranked = score_candidates(args.concept, exp.features, cands)
-    for c in ranked[:10]:
-        print(f"  {c['score']:>2}  {c['name']}  - {c['reason']}")
-    stops = [c for c in ranked[:TOP_K] if c["score"] >= 5]
+    print(f"[2/3] この街での「{args.concept}」を解釈して場所を選択中")
+    interpretation, ranked = choose_places(args.concept, inventory)
+    print(f"  解釈: {interpretation}")
+    for c in ranked:
+        print(f"  {c['score']:>2}  {c['name']}（{c['kind']}） - {c['reason']}")
+    stops = [c for c in ranked if c["score"] >= 5]
     if not stops:
         sys.exit("合致度5以上の地点がありません。")
 
-    print("[4/4] 徒歩ルートを計算中")
+    print("[3/3] 徒歩ルートを計算中")
     start, order, total, coords = plan_route(args.lat, args.lon, radius, stops, max_m)
     out = f"route_{args.concept}.html"
     render(args.concept, start, order, coords, total, out)

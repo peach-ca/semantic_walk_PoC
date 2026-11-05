@@ -5,6 +5,8 @@
 ブラウザで http://localhost:8501 を開く
 """
 
+from collections import Counter
+
 import folium
 import pandas as pd
 import streamlit as st
@@ -31,29 +33,28 @@ with st.sidebar:
     st.caption("地図をクリックすると出発地を変えられます")
     run = st.button("ルートを作る", type="primary", use_container_width=True)
     st.divider()
-    st.caption(f"モデル: {poc.MODEL}")
+    st.caption(f"モデル: {' → '.join(poc.MODELS)}")
+    st.caption("同じ出発地・時間なら、2回目以降は周辺データがキャッシュされて速くなります")
 
 
 # ---------- 実行 ----------
 
 if run:
     max_m = minutes / 60 * poc.WALK_KMH * 1000
-    radius = int(min(max(max_m / 3, 400), 1500))
+    radius = poc.search_radius(minutes)
     with st.status("ルートを作成中…", expanded=True) as status:
         try:
-            st.write(f"「{concept}」を具体的な風景に展開中")
-            exp = poc.expand_concept(concept)
-            st.write("特徴: " + " / ".join(exp.features))
-
-            st.write(f"半径{radius}mの候補地を取得中")
-            cands = poc.fetch_candidates(lat, lon, radius, poc.to_osm_tags(exp.tags))
-            if not cands:
-                status.update(label="候補地が見つかりませんでした", state="error")
+            st.write(f"半径{radius}mの周辺の場所を取得中")
+            inventory = poc.fetch_inventory(lat, lon, radius)
+            if not inventory:
+                status.update(label="周辺に名前付きの場所が見つかりませんでした", state="error")
                 st.stop()
+            st.write(f"{len(inventory)} 件を取得")
 
-            st.write(f"候補 {len(cands)} 件を採点中")
-            ranked = poc.score_candidates(concept, exp.features, cands)
-            stops = [c for c in ranked[: poc.TOP_K] if c["score"] >= 5]
+            st.write(f"この街での「{concept}」を解釈して場所を選択中")
+            interpretation, ranked = poc.choose_places(concept, inventory)
+            st.write(f"解釈: {interpretation}")
+            stops = [c for c in ranked if c["score"] >= 5]
             if not stops:
                 status.update(label="合致度5以上の地点がありませんでした", state="error")
                 st.stop()
@@ -68,7 +69,8 @@ if run:
         status.update(label="完了", state="complete", expanded=False)
         st.session_state.result = {
             "concept": concept,
-            "exp": exp,
+            "interpretation": interpretation,
+            "inventory": inventory,
             "ranked": ranked,
             "order": order,
             "coords": coords,
@@ -83,6 +85,7 @@ if result:
     km = result["total"] / 1000
     st.title(f"「{result['concept']}」を摂取する散歩")
     st.caption(f"約{km:.1f}km・{km / poc.WALK_KMH * 60:.0f}分・{len(result['order'])}地点")
+    st.info(result["interpretation"])
 else:
     st.title("概念散歩ルート PoC")
     st.caption("左で概念と時間を入れて「ルートを作る」を押してください")
@@ -120,18 +123,20 @@ with col_info:
         st.subheader("立ち寄り先")
         for i, s in enumerate(result["order"], 1):
             st.markdown(f"**{i}. {s['name']}**　合致度 {s['score']}/10")
-            st.caption(s["reason"])
+            st.caption(f"{s['reason']}（{s['kind']}）")
 
-        with st.expander("概念の展開（Gemini）"):
-            st.write("**風景の特徴**")
-            st.write(" / ".join(result["exp"].features))
-            st.write("**探したOSMタグ**")
-            for t in result["exp"].tags:
-                st.write(f"- `{t.key}={t.value}` … {t.why}")
-
-        with st.expander("候補地の採点（上位20）"):
+        with st.expander("Gemini が選んだ候補（ルートから外れたものも含む）"):
             df = pd.DataFrame(
-                [{"名前": c["name"], "合致度": c["score"], "理由": c["reason"]}
-                 for c in result["ranked"][:20]]
+                [{"名前": c["name"], "種類": c["kind"], "合致度": c["score"], "理由": c["reason"]}
+                 for c in result["ranked"]]
+            )
+            st.dataframe(df, hide_index=True, use_container_width=True)
+
+        with st.expander(f"周辺の場所の一覧（Gemini に渡した {len(result['inventory'])} 件）"):
+            kinds = Counter(it["kind"] for it in result["inventory"])
+            st.write("種類の内訳: " + "、".join(f"{k} {n}" for k, n in kinds.most_common()))
+            df = pd.DataFrame(
+                [{"名前": it["name"], "種類": it["kind"], "距離(m)": int(it["dist"])}
+                 for it in result["inventory"]]
             )
             st.dataframe(df, hide_index=True, use_container_width=True)
