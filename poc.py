@@ -17,6 +17,7 @@ import math
 import os
 import sys
 import time
+from functools import lru_cache
 
 import folium
 import networkx as nx
@@ -47,6 +48,10 @@ OVERPASS_URLS = [
 ]
 ox.settings.overpass_rate_limit = False  # サーバー状態の確認による待機をしない
 ox.settings.requests_timeout = 30
+
+# ローカルの OSM ファイル（get_osm.sh で作成）。指定があればサーバーに問い合わせない
+OSM_FILE = os.environ.get("OSM_FILE")            # 周辺の場所用（全データ）
+OSM_WALK_FILE = os.environ.get("OSM_WALK_FILE")  # 道路網用（highway のみ）
 
 # 周辺を見渡すための固定のタグ。概念に関係なく毎回同じなのでキャッシュが効く
 INVENTORY_TAGS = {
@@ -142,10 +147,27 @@ def overpass_call(fn, *args, **kwargs):
     raise last_error
 
 
+@lru_cache(maxsize=2)
+def _local_features(path):
+    """ローカルファイルの場所データ。一度読んだらプロセス内で使い回す"""
+    print(f"  ローカルの OSM ファイルを読み込み中: {path}")
+    return ox.features_from_xml(path, tags=INVENTORY_TAGS)
+
+
+@lru_cache(maxsize=2)
+def _local_graph(path):
+    """ローカルファイルの道路網。一度読んだらプロセス内で使い回す"""
+    print(f"  ローカルの道路網を読み込み中: {path}")
+    return ox.graph_from_xml(path, bidirectional=True, simplify=True)
+
+
 def fetch_inventory(lat, lon, radius) -> list[dict]:
     """周辺の名前付きの場所を集め、種類ごとに近い順で上限まで残す"""
     try:
-        gdf = overpass_call(ox.features_from_point, (lat, lon), tags=INVENTORY_TAGS, dist=radius)
+        if OSM_FILE:
+            gdf = _local_features(OSM_FILE)
+        else:
+            gdf = overpass_call(ox.features_from_point, (lat, lon), tags=INVENTORY_TAGS, dist=radius)
     except InsufficientResponseError:
         print("  周辺に名前付きの場所が見つかりませんでした")
         return []
@@ -163,14 +185,17 @@ def fetch_inventory(lat, lon, radius) -> list[dict]:
                 break
         if kind is None:
             continue
-        seen.add(name)
         pt = row.geometry.representative_point()
+        dist = haversine_m(lat, lon, pt.y, pt.x)
+        if dist > radius:  # ローカルファイルは広めに切り出しているので半径で絞る
+            continue
+        seen.add(name)
         items.append({
             "name": name,
             "kind": kind,
             "lat": pt.y,
             "lon": pt.x,
-            "dist": haversine_m(lat, lon, pt.y, pt.x),
+            "dist": dist,
         })
 
     items.sort(key=lambda it: it["dist"])
@@ -237,7 +262,10 @@ def build_route(G, start, order):
 
 
 def plan_route(lat, lon, radius, stops, max_m):
-    G = overpass_call(ox.graph_from_point, (lat, lon), dist=radius + 300, network_type="walk")
+    if OSM_WALK_FILE:
+        G = _local_graph(OSM_WALK_FILE)
+    else:
+        G = overpass_call(ox.graph_from_point, (lat, lon), dist=radius + 300, network_type="walk")
     start = {"name": "出発地", "lat": lat, "lon": lon}
     pts = [start] + stops
     nodes = ox.distance.nearest_nodes(G, X=[p["lon"] for p in pts], Y=[p["lat"] for p in pts])

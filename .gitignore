@@ -8,3 +8,5 @@ __pycache__/
 # PoC の出力と osmnx のキャッシュ
 route_*.html
 cache/
+data/
+.vscode/

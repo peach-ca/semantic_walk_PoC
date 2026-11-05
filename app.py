@@ -34,6 +34,8 @@ with st.sidebar:
     run = st.button("ルートを作る", type="primary", use_container_width=True)
     st.divider()
     st.caption(f"モデル: {' → '.join(poc.MODELS)}")
+    st.caption("データ: " + (f"ローカル OSM ファイル（{poc.OSM_FILE}）" if poc.OSM_FILE
+                            else "Overpass（公開サーバー）"))
     st.caption("同じ出発地・時間なら、2回目以降は周辺データがキャッシュされて速くなります")
 
 
