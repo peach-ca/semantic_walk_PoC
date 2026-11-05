@@ -1,0 +1,22 @@
+[project]
+name = "semantic-walk-poc"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Kenshiro Nakamura", email = "osusikun521@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "folium>=0.20.0",
+    "google-genai>=2.34.0",
+    "osmnx>=2.1.1",
+    "pydantic>=2.14.3",
+]
+
+[project.scripts]
+semantic-walk-poc = "semantic_walk_poc:main"
+
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14.0"]
+build-backend = "uv_build"
