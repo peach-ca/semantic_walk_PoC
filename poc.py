@@ -24,10 +24,28 @@ import networkx as nx
 import osmnx as ox
 from google import genai
 from google.genai import errors, types
+from osmnx._errors import InsufficientResponseError
 from pydantic import BaseModel
 
-MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
+# 503（混雑）や 429（回数制限）のときに順に試すモデル。先頭が第一候補
+MODELS = list(dict.fromkeys([
+    MODEL,
+    "gemini-3.1-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-3.5-flash",
+]))
 WALK_KMH = 4.8
+
+# Overpass（OSM のデータ取得）の公開サーバー。混雑していたら次を試す
+OVERPASS_URLS = [
+    "https://overpass-api.de/api",
+    "https://overpass.kumi.systems/api",
+    "https://overpass.private.coffee/api",
+    "https://maps.mail.ru/osm/tools/overpass/api",
+]
+ox.settings.overpass_rate_limit = False  # サーバー状態の確認による待機をしない
+ox.settings.requests_timeout = 90
 MAX_CANDIDATES = 60
 TOP_K = 6
 
@@ -59,25 +77,38 @@ client = genai.Client()
 
 
 def ask(prompt: str, schema):
-    """混雑（503）や回数制限（429）のときは待ち時間を伸ばしながら再試行する"""
-    for attempt in range(5):
-        try:
-            res = client.models.generate_content(
-                model=MODEL,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema=schema,
-                    temperature=0.4,
-                ),
-            )
-            return res.parsed
-        except (errors.ServerError, errors.ClientError) as e:
-            if e.code not in (429, 503) or attempt == 4:
-                raise
-            wait = 5 * 2 ** attempt  # 5, 10, 20, 40秒
-            print(f"  Gemini が混雑中（{e.code}）。{wait}秒後に再試行します")
-            time.sleep(wait)
+    """JSON で回答させ、Python 側でスキーマ検証する。
+
+    入れ子のスキーマを response_schema で渡すと 503 が続いたため、
+    スキーマはプロンプトに書き、検証は pydantic で行う。
+    混雑（503）や回数制限（429）のときは待ち時間を伸ばしながら再試行する。
+    """
+    full_prompt = (
+        prompt
+        + "\n\n次の JSON Schema に従う JSON だけを返して。説明文やコードブロックは付けない。\n"
+        + json.dumps(schema.model_json_schema(), ensure_ascii=False)
+    )
+    last_error = None
+    for round_ in range(3):
+        for model in MODELS:
+            try:
+                res = client.models.generate_content(
+                    model=model,
+                    contents=full_prompt,
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.4,
+                    ),
+                )
+                print(f"  使用モデル: {model}")
+                return schema.model_validate_json(res.text)
+            except (errors.ServerError, errors.ClientError) as e:
+                if e.code not in (429, 503):
+                    raise
+                last_error = e
+                print(f"  {model} が {e.code}。次のモデルを試します")
+        time.sleep(3 * (round_ + 1))  # 全モデルが失敗したら少し待って一巡し直す
+    raise last_error
 
 
 # ---------- 1. 概念の展開 ----------
@@ -120,11 +151,26 @@ def haversine_m(lat1, lon1, lat2, lon2) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
+def overpass_call(fn, *args, **kwargs):
+    """Overpass のサーバーを順に試す。該当データなしの例外はそのまま投げる"""
+    last_error = None
+    for url in OVERPASS_URLS:
+        ox.settings.overpass_url = url
+        try:
+            return fn(*args, **kwargs)
+        except InsufficientResponseError:
+            raise
+        except Exception as e:
+            last_error = e
+            print(f"  Overpass {url} が応答しません。次のサーバーを試します")
+    raise last_error
+
+
 def fetch_candidates(lat, lon, radius, osm_tags) -> list[dict]:
     try:
-        gdf = ox.features_from_point((lat, lon), tags=osm_tags, dist=radius)
-    except Exception as e:  # 該当なしの場合も例外になる
-        print(f"候補地が取得できませんでした: {e}")
+        gdf = overpass_call(ox.features_from_point, (lat, lon), tags=osm_tags, dist=radius)
+    except InsufficientResponseError:
+        print("  条件に合う場所が OSM にありませんでした")
         return []
 
     seen, cands = set(), []
@@ -196,7 +242,7 @@ def build_route(G, start, order):
 
 
 def plan_route(lat, lon, radius, stops, max_m):
-    G = ox.graph_from_point((lat, lon), dist=radius + 300, network_type="walk")
+    G = overpass_call(ox.graph_from_point, (lat, lon), dist=radius + 300, network_type="walk")
     start = {"name": "出発地", "lat": lat, "lon": lon}
     pts = [start] + stops
     nodes = ox.distance.nearest_nodes(G, X=[p["lon"] for p in pts], Y=[p["lat"] for p in pts])
