@@ -1,11 +1,5 @@
-"""概念散歩ルート PoC のローカル UI
-
-起動:
-  uv run --env-file .env streamlit run app.py
-ブラウザで http://localhost:8501 を開く
-"""
-
-from collections import Counter
+"""起動: uv run --env-file .env streamlit run app.py"""
+from html import escape
 
 import folium
 import pandas as pd
@@ -15,130 +9,161 @@ from streamlit_folium import st_folium
 import poc
 
 st.set_page_config(page_title="概念散歩 PoC", page_icon="🚶", layout="wide")
-
-if "start" not in st.session_state:
-    st.session_state.start = (34.9858, 135.7588)  # 初期値（地図クリックで変更）
-if "result" not in st.session_state:
-    st.session_state.result = None
-
-
-# ---------- 入力 ----------
+state = st.session_state
+for key, value in {"start": (34.9858, 135.7588), "result": None,
+                   "prepared": None, "map_version": 0}.items():
+    if key not in state:
+        state[key] = value
 
 with st.sidebar:
     st.header("散歩の条件")
-    concept = st.text_input("摂取したい概念", "ノスタルジー")
+    concept = st.text_input("どんな気分を感じたい？", "ノスタルジー")
     minutes = st.slider("散歩の時間（分）", 15, 120, 45, step=5)
-    lat, lon = st.session_state.start
+    lat, lon = state.start
     st.caption(f"出発地: {lat:.5f}, {lon:.5f}")
     st.caption("地図をクリックすると出発地を変えられます")
-    run = st.button("ルートを作る", type="primary", use_container_width=True)
-    st.divider()
-    st.caption(f"モデル: {' → '.join(poc.MODELS)}")
-    st.caption("データ: " + (f"ローカル OSM ファイル（{poc.OSM_FILE}）" if poc.OSM_FILE
-                            else "Overpass（公開サーバー）"))
-    st.caption("同じ出発地・時間なら、2回目以降は周辺データがキャッシュされて速くなります")
+    st.caption("時間は出発地に戻るまでの徒歩の目安です。滞在・信号待ちは含みません。")
+    prepare = st.button("周辺の場所と希望を確認", type="primary", use_container_width=True)
 
+signature = (concept.strip(), minutes, lat, lon)
+if state.get("signature") != signature:
+    state.signature = signature
+    state.prepared = None
+    state.result = None
+    for key in ("required", "excluded", "clarification_answer", "clarification_custom"):
+        state.pop(key, None)
 
-# ---------- 実行 ----------
+if prepare:
+    state.result = None
+    state.prepared = None
+    for key in ("required", "excluded", "clarification_answer", "clarification_custom"):
+        state.pop(key, None)
+    if not concept.strip():
+        st.warning("感じたい気分や希望を入力してください。")
+    else:
+        with st.status("周辺の場所と希望を確認中…", expanded=True) as status:
+            try:
+                radius = poc.search_radius(minutes)
+                inventory = poc.fetch_inventory(lat, lon, radius, limit=False)
+                if not inventory:
+                    raise ValueError("周辺に名前付きの場所が見つかりません。出発地を変更してください。")
+                st.write(f"周辺の場所を{len(inventory)}件取得しました。希望を確認しています。")
+                clarification = poc.clarify_concept(concept.strip())
+                state.prepared = {"inventory": inventory, "radius": radius,
+                                  "clarification": clarification}
+                status.update(label="場所と希望を選べます", state="complete", expanded=False)
+            except Exception as e:
+                status.update(label="確認できませんでした", state="error")
+                st.error(str(e))
 
-if run:
-    max_m = minutes / 60 * poc.WALK_KMH * 1000
-    radius = poc.search_radius(minutes)
-    with st.status("ルートを作成中…", expanded=True) as status:
-        try:
-            st.write(f"半径{radius}mの周辺の場所を取得中")
-            inventory = poc.fetch_inventory(lat, lon, radius)
-            if not inventory:
-                status.update(label="周辺に名前付きの場所が見つかりませんでした", state="error")
-                st.stop()
-            st.write(f"{len(inventory)} 件を取得")
+st.title("気分に合う散歩を見つける")
+prepared = state.prepared
+if prepared:
+    clarification = prepared["clarification"]
+    preference = ""
+    if clarification.needs_clarification:
+        st.subheader("もう少し希望を教えてください")
+        custom_option = "自分の言葉で指定する"
+        options = list(dict.fromkeys(clarification.options + [custom_option, "おまかせ"]))
+        answer = st.radio(clarification.question, options, index=None, key="clarification_answer")
+        if answer == custom_option:
+            preference = st.text_input("具体的に感じたいこと", key="clarification_custom").strip()
+        elif answer:
+            preference = answer
+    else:
+        st.caption("希望が具体的なので、追加の質問はありません。")
 
-            st.write(f"この街での「{concept}」を解釈して場所を選択中")
-            interpretation, ranked = poc.choose_places(concept, inventory)
-            st.write(f"解釈: {interpretation}")
-            stops = [c for c in ranked if c["score"] >= 5]
-            if not stops:
-                status.update(label="合致度5以上の地点がありませんでした", state="error")
-                st.stop()
+    inventory = prepared["inventory"]
+    by_id = {p["id"]: p for p in inventory}
 
-            st.write("徒歩ルートを計算中")
-            _, order, total, coords = poc.plan_route(lat, lon, radius, stops, max_m)
-        except Exception as e:  # PoC なのでそのまま表示する
-            status.update(label="エラーが発生しました", state="error")
-            st.exception(e)
-            st.stop()
+    def place_label(place_id):
+        p = by_id[place_id]
+        return f"{p['name']}（{p['kind']}・直線約{p['dist']:.0f}m）"
 
-        status.update(label="完了", state="complete", expanded=False)
-        st.session_state.result = {
-            "concept": concept,
-            "interpretation": interpretation,
-            "inventory": inventory,
-            "ranked": ranked,
-            "order": order,
-            "coords": coords,
-            "total": total,
-        }
+    st.subheader("行きたい場所・外したい場所")
+    st.caption("周辺の場所を名前で絞り込んで選べます。必須地点も徒歩での往復時間を確認します。")
+    required = st.multiselect("必ず行きたい場所（最大8か所）", list(by_id),
+                              format_func=place_label, max_selections=8, key="required")
+    excluded = st.multiselect("候補から外す場所", list(by_id),
+                              format_func=place_label, key="excluded")
+    conflict = set(required) & set(excluded)
+    if conflict:
+        st.warning("同じ場所が必須と除外の両方に選ばれています。どちらか一方にしてください。")
+    unanswered = clarification.needs_clarification and not preference
+    if unanswered:
+        st.caption("上の質問に回答するとルートを作れます。「おまかせ」も選べます。")
+    selection_signature = (tuple(required), tuple(excluded), preference)
+    if state.get("selection_signature") != selection_signature:
+        state.selection_signature = selection_signature
+        state.result = None
+    if st.button("選んだ条件でルートを作る", type="primary", disabled=bool(conflict or unanswered)):
+        state.result = None
+        with st.status("希望に合うルートを作成中…", expanded=True) as status:
+            try:
+                eligible = [p for p in inventory if p["id"] not in excluded]
+                if not eligible:
+                    raise ValueError("すべての場所が除外されています。除外する場所を減らしてください。")
+                candidates = poc.sample_inventory(eligible)
+                candidate_ids = {p["id"] for p in candidates}
+                candidates += [by_id[i] for i in required if i not in candidate_ids]
+                st.write("希望と除外条件をもとに、立ち寄り先を選んでいます。")
+                interpretation, ranked = poc.choose_places(concept.strip(), candidates, preference)
+                stops = {p["id"]: p for p in ranked if p["score"] >= 5}
+                ranked_by_id = {p["id"]: p for p in ranked}
+                for i in required:
+                    stops[i] = ranked_by_id.get(i, {**by_id[i], "score": 0,
+                                                    "reason": "ユーザー指定の必須地点"})
+                if not stops:
+                    raise ValueError("希望に合う候補がありません。希望を変えるか必須地点を指定してください。")
+                st.write("必須地点と徒歩での往復時間を確認しています。")
+                _, order, total, coords = poc.plan_route(
+                    lat, lon, prepared["radius"], list(stops.values()),
+                    minutes / 60 * poc.WALK_KMH * 1000, required_ids=required)
+                state.result = {"interpretation": interpretation, "ranked": ranked,
+                                "order": order, "coords": coords, "total": total}
+                status.update(label="ルートができました", state="complete", expanded=False)
+            except Exception as e:
+                status.update(label="条件を見直してください", state="error")
+                st.error(str(e))
+else:
+    st.caption("左で気分と時間を入力し、「周辺の場所と希望を確認」を押してください。")
 
-
-# ---------- 表示 ----------
-
-result = st.session_state.result
+result = state.result
 if result:
     km = result["total"] / 1000
-    st.title(f"「{result['concept']}」を摂取する散歩")
-    st.caption(f"約{km:.1f}km・{km / poc.WALK_KMH * 60:.0f}分・{len(result['order'])}地点")
+    st.subheader(f"「{concept.strip()}」を感じる散歩")
+    st.caption(f"約{km:.1f}km・徒歩約{km / poc.WALK_KMH * 60:.0f}分・{len(result['order'])}地点・出発地に戻ります")
     st.info(result["interpretation"])
-else:
-    st.title("概念散歩ルート PoC")
-    st.caption("左で概念と時間を入れて「ルートを作る」を押してください")
 
 col_map, col_info = st.columns([3, 2])
-
 with col_map:
-    m = folium.Map(location=st.session_state.start, zoom_start=16)
-    folium.Marker(
-        st.session_state.start, tooltip="出発地",
-        icon=folium.Icon(color="gray", icon="home"),
-    ).add_to(m)
+    m = folium.Map(location=state.start, zoom_start=16)
+    folium.Marker(state.start, tooltip="出発地", icon=folium.Icon(color="gray", icon="home")).add_to(m)
     if result:
-        if result["coords"]:
-            folium.PolyLine(result["coords"], weight=5, opacity=0.7).add_to(m)
-        for i, s in enumerate(result["order"], 1):
-            html = f"<b>{i}. {s['name']}</b><br>合致度 {s['score']}/10<br>{s['reason']}"
-            folium.Marker(
-                [s["lat"], s["lon"]], tooltip=f"{i}. {s['name']}",
-                popup=folium.Popup(html, max_width=260),
-            ).add_to(m)
-
-    out = st_folium(m, height=620, use_container_width=True, key="map",
-                    returned_objects=["last_clicked"])
+        folium.PolyLine(result["coords"], weight=5, opacity=0.7).add_to(m)
+        for i, p in enumerate(result["order"], 1):
+            label = "必須" if p["id"] in state.get("required", []) else f"合致度 {p['score']}/10"
+            html = f"<b>{i}. {escape(p['name'])}</b><br>{label}<br>{escape(p['reason'])}"
+            folium.Marker([p["lat"], p["lon"]], tooltip=f"{i}. {p['name']}",
+                          popup=folium.Popup(html, max_width=260)).add_to(m)
+        m.fit_bounds(result["coords"])
+    out = st_folium(m, height=620, use_container_width=True,
+                    key=f"map_{state.map_version}", returned_objects=["last_clicked"])
     clicked = (out or {}).get("last_clicked")
-    if clicked:
-        new_start = (clicked["lat"], clicked["lng"])
-        if new_start != st.session_state.start:
-            st.session_state.start = new_start
-            st.session_state.result = None  # 出発地が変わったらルートは作り直し
-            st.rerun()
+    if clicked and (clicked["lat"], clicked["lng"]) != state.start:
+        state.start = (clicked["lat"], clicked["lng"])
+        state.map_version += 1
+        st.rerun()
 
 with col_info:
     if result:
         st.subheader("立ち寄り先")
-        for i, s in enumerate(result["order"], 1):
-            st.markdown(f"**{i}. {s['name']}**　合致度 {s['score']}/10")
-            st.caption(f"{s['reason']}（{s['kind']}）")
-
-        with st.expander("Gemini が選んだ候補（ルートから外れたものも含む）"):
-            df = pd.DataFrame(
-                [{"名前": c["name"], "種類": c["kind"], "合致度": c["score"], "理由": c["reason"]}
-                 for c in result["ranked"]]
-            )
-            st.dataframe(df, hide_index=True, use_container_width=True)
-
-        with st.expander(f"周辺の場所の一覧（Gemini に渡した {len(result['inventory'])} 件）"):
-            kinds = Counter(it["kind"] for it in result["inventory"])
-            st.write("種類の内訳: " + "、".join(f"{k} {n}" for k, n in kinds.most_common()))
-            df = pd.DataFrame(
-                [{"名前": it["name"], "種類": it["kind"], "距離(m)": int(it["dist"])}
-                 for it in result["inventory"]]
-            )
-            st.dataframe(df, hide_index=True, use_container_width=True)
+        for i, p in enumerate(result["order"], 1):
+            label = "必須地点" if p["id"] in state.get("required", []) else f"合致度 {p['score']}/10"
+            st.markdown(f"**{i}. {p['name']}**　{label}")
+            st.caption(p["reason"])
+        st.caption("行きたくない場所は上の「候補から外す場所」で選び、ルートを作り直せます。")
+        with st.expander("AIが選んだ候補を確認"):
+            st.dataframe(pd.DataFrame([{"名前": p["name"], "種類": p["kind"],
+                                        "合致度": p["score"], "理由": p["reason"]}
+                                       for p in result["ranked"]]), hide_index=True)
