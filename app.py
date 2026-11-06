@@ -17,7 +17,7 @@ import poc
 st.set_page_config(page_title="概念散歩 PoC", page_icon="🚶", layout="wide")
 
 if "start" not in st.session_state:
-    st.session_state.start = (35.6812, 139.7671)  # 初期値（地図クリックで変更）
+    st.session_state.start = (34.9858, 135.7588)  # 初期値（地図クリックで変更）
 if "result" not in st.session_state:
     st.session_state.result = None
 

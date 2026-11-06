@@ -71,6 +71,7 @@ KIND_KEYS = ["historic", "tourism", "amenity", "leisure", "man_made",
              "railway", "natural", "craft", "shop"]
 
 
+# 毎回geminiの最初のモデルはエラー492でおちる
 # ---------- Gemini ----------
 
 class Pick(BaseModel):
@@ -316,6 +317,7 @@ def render(concept, start, order, coords, total, out):
         f'padding:8px 12px;border-radius:6px;font-size:15px;">{title}</div>'
     ))
     m.save(out)
+
 
 
 def main():
