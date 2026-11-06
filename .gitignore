@@ -10,3 +10,4 @@ route_*.html
 cache/
 data/
 .vscode/
+results/
