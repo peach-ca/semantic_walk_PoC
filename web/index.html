@@ -3,7 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#f5f4ec">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f5f4ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#121a16" media="(prefers-color-scheme: dark)">
   <title>よりみち — 気分から、知らない近所へ</title>
   <link rel="stylesheet" href="./style.css">
   <script src="./app.js" type="module"></script>
@@ -16,11 +18,10 @@
   </header>
   <div class="layout">
     <aside class="intro" aria-label="アプリについて">
-      <span class="eyebrow">A LITTLE WALK, A NEW PERSPECTIVE</span>
       <h1>行き先よりも、<br>いまの気分で。</h1>
       <p>名前を知らない路地も、<br>通り過ぎていた小さな場所も。<br>今日のあなたに、つながっている。</p>
       <div class="walk-art" aria-hidden="true"><svg viewBox="0 0 420 260"><path class="art-street" d="M-10 70 L430 180 M70 -20 L190 280 M310 -20 L200 280 M-10 220 L430 55"/><path class="art-park" d="M270 45 Q345 15 360 85 Q372 143 309 141 Q255 128 270 45"/><path class="art-route" d="M90 195 Q135 158 166 171 T240 129 Q255 103 304 89"/><circle cx="90" cy="195" r="9"/><circle cx="304" cy="89" r="9"/><circle class="art-dot" cx="178" cy="169" r="5"/><text x="70" y="230">いつもの場所</text><text x="266" y="66">まだ知らない場所</text></svg></div>
-      <div class="intro-foot"><span>01 — 気分をほどく</span><span>02 — 街で見つける</span></div>
+      <p class="intro-foot">気分をことばにして、まだ知らない近所を歩く。</p>
     </aside>
     <main id="app" class="app-panel" tabindex="-1" aria-label="散歩をつくる"></main>
   </div>

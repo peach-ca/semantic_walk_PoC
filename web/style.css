@@ -1,5 +1,294 @@
-:root{--paper:#f5f4ec;--white:#fffef9;--ink:#233d32;--muted:#6c776c;--line:#dedfd3;--green:#294d3c;--lime:#dce5bc;--orange:#c88350;--error:#9b3b2f;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;color:var(--ink);background:var(--paper);font-size:15px;line-height:1.7}
-*{box-sizing:border-box}body{margin:0}button,input,textarea,select{font:inherit}button,a,input,textarea,select{-webkit-tap-highlight-color:transparent}button{cursor:pointer}button:disabled{opacity:.5;cursor:wait}a{color:inherit;text-underline-offset:4px}button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:3px solid var(--orange);outline-offset:4px}button{touch-action:manipulation}h1,h2,h3,p{margin:0}h2{font-size:30px;line-height:1.6;font-weight:600;letter-spacing:.03em}h3{font-size:17px}small{font-size:12px}.site-header{max-width:1360px;margin:auto;padding:28px 48px;display:flex;align-items:center;gap:28px;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:10px;text-decoration:none;font-size:23px;font-weight:700;letter-spacing:.08em}.brand-mark{background:var(--green);border-radius:50%;color:var(--paper);width:35px;height:35px;display:grid;place-items:center;font-size:25px}.brand-en{font-size:9px;letter-spacing:.18em;align-self:flex-end;margin-bottom:6px}.header-note{font-size:12px;color:var(--muted);margin-left:auto}.badge{font-size:11px;padding:4px 10px;background:var(--lime);border-radius:30px;white-space:nowrap}.layout{max-width:1230px;margin:64px auto 44px;display:grid;grid-template-columns:1fr 520px;gap:85px;padding:0 36px;align-items:start}.intro{padding-top:42px;position:sticky;top:30px}.eyebrow{font-size:10px;letter-spacing:.18em;color:var(--muted)}.intro h1{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-size:49px;line-height:1.65;letter-spacing:.08em;font-weight:500;margin:25px 0}.intro>p{color:var(--muted);line-height:2.3;font-size:14px}.walk-art{margin-top:28px;max-width:400px}.walk-art svg{width:100%;fill:var(--green)}.art-street{fill:none;stroke:#e5e3d8;stroke-width:26}.art-park{fill:#dfe5cd}.art-route{fill:none;stroke:var(--green);stroke-width:3;stroke-dasharray:6 7}.art-dot{fill:var(--orange)}.walk-art text{fill:var(--muted);font-size:11px}.intro-foot{border-top:1px solid var(--line);padding-top:20px;display:flex;gap:28px;font-size:11px;color:var(--muted)}.app-panel{background:var(--white);border:1px solid var(--line);border-radius:24px;padding:34px;min-height:590px;box-shadow:0 18px 50px #233d3206;outline:none}.step-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:30px}.step-label{font-size:11px;letter-spacing:.12em;color:var(--muted)}.progress{display:flex;gap:5px}.progress i{display:block;width:23px;height:3px;background:var(--line);border-radius:2px}.progress i.active{background:var(--green)}.lead{color:var(--muted);font-size:13px;margin:13px 0 25px}.pill{display:inline-block;border:1px solid var(--line);border-radius:30px;padding:5px 13px;font-size:12px;margin-bottom:15px;background:var(--paper)}.field{display:block;font-size:13px;font-weight:600;margin:22px 0 8px}.text-field{display:block;width:100%;border:1px solid #cdd2c4;border-radius:12px;background:white;padding:14px;color:var(--ink)}textarea.text-field{min-height:120px;resize:vertical}.text-field::placeholder{color:#99a092}.primary,.secondary,.text-button{border:0;border-radius:12px;min-height:50px;padding:12px 18px;font-weight:600}.primary{background:var(--green);color:white;width:100%;display:flex;justify-content:space-between;align-items:center;margin-top:26px}.primary::after{content:"↗";font-size:20px;font-weight:400}.secondary{background:var(--paper);color:var(--ink);border:1px solid var(--line)}.text-button{background:transparent;color:var(--muted);min-height:44px;padding:8px 4px;font-size:13px}.actions{display:flex;gap:12px;align-items:center;margin-top:18px;flex-wrap:wrap}.actions>*{flex:1}.actions .primary{margin:0}.error{padding:13px 15px;background:#fbede7;color:var(--error);border-radius:10px;font-size:13px;margin:15px 0}.subtle{font-size:12px;color:var(--muted);margin-top:12px}.notice-list{padding:0;list-style:none;margin:25px 0}.notice-list li{display:flex;gap:14px;padding:15px 0;border-bottom:1px solid var(--line)}.notice-list b{font-size:13px;display:block}.notice-list p{font-size:12px;color:var(--muted);margin-top:3px}.notice-num{font-family:Georgia,serif;font-size:24px;color:var(--orange)}.choice{display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;width:100%;background:transparent;border:1px solid var(--line);padding:17px;border-radius:12px;color:var(--ink);margin:10px 0;font-size:14px}.choice::after{content:"↗";color:var(--muted)}.choice:hover,.secondary:hover{background:#eaf0dd}.divider{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:11px;margin:20px 0}.divider::before,.divider::after{content:"";height:1px;background:var(--line);flex:1}.duration-options{display:flex;gap:10px}.duration-option{flex:1}.duration-option input{position:absolute;opacity:0}.duration-option span{display:block;border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center;font-size:14px}.duration-option input:checked+span{background:var(--green);color:white;border-color:var(--green)}.duration-option input:focus-visible+span{outline:3px solid var(--orange);outline-offset:3px}.coords{display:grid;grid-template-columns:1fr 1fr;gap:12px}.coords .field{margin-top:12px}.coords input{padding:10px;min-width:0}.map{height:250px;border-radius:14px;overflow:hidden;background:#e9ecdf;margin-top:16px;position:relative;isolation:isolate}.map.google{background:#e9ecdf}.map svg{display:block;width:100%;height:100%}.map-label{font-size:11px;color:var(--muted);margin-top:6px}.mock-map{background:#e9ecdf}.map-pin{fill:var(--green);stroke:var(--white);stroke-width:3}.map-line{fill:none;stroke:var(--green);stroke-width:4;stroke-dasharray:7 5}.map-note{fill:#687863;font-size:12px}.mock-tools{border:1px dashed #b4be9a;padding:12px;border-radius:10px;margin-top:16px;font-size:12px;background:var(--paper)}.mock-tools p{margin-bottom:8px}.mock-tools button{font-size:12px;padding:6px 9px;min-height:38px}.loader{width:100px;height:100px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;margin:45px auto 28px;position:relative;font-size:38px}.loader::before{content:"";position:absolute;inset:-1px;border:2px solid transparent;border-top-color:var(--green);border-radius:50%;animation:turn 2s linear infinite}@keyframes turn{to{transform:rotate(360deg)}}.waiting{text-align:center}.waiting h2{font-size:25px}.time{font-variant-numeric:tabular-nums;color:var(--muted);font-size:12px;margin:12px 0}.summary{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding-bottom:17px;margin-bottom:18px}.summary strong{font-size:27px;font-weight:500}.summary small{margin-left:4px}.place-list{padding:0;list-style:none;counter-reset:places}.place-card{border-bottom:1px solid var(--line);padding:18px 0;display:grid;grid-template-columns:29px 1fr auto;gap:10px}.place-number{border:1px solid var(--line);border-radius:50%;width:25px;height:25px;display:grid;place-items:center;font-size:11px}.place-kind{font-size:10px;color:var(--muted);letter-spacing:.05em}.place-card h3{font-size:15px}.place-card p{font-size:13px;margin-top:4px}.place-card .distance{font-size:11px;color:var(--muted)}.place-card a{font-size:11px}.remove{background:transparent;border:0;color:var(--muted);font-size:12px;min-height:44px;align-self:start;padding:8px}.warning{color:#945c27;font-size:12px!important}.attribution{font-size:10px;color:var(--muted);margin-top:10px}.sources{font-size:11px;color:var(--muted);margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}.walk-distance{font-size:65px;font-weight:400;line-height:1.2;letter-spacing:-.04em;margin:25px 0 10px}.walk-distance small{font-size:20px;letter-spacing:0;margin-left:5px}.compass{width:72px;height:72px;border-radius:50%;border:1px solid var(--line);display:grid;place-items:center;font-size:36px;margin-top:26px}.quiet{background:#17271f;color:#edf0df;min-height:590px;display:flex;flex-direction:column;justify-content:center;text-align:center;margin:-34px;padding:50px 34px;border-radius:23px}.quiet .eyebrow{color:#a5b49c}.quiet h2{font-family:"Hiragino Mincho ProN","Yu Mincho",serif;font-weight:400;font-size:29px;line-height:2;margin-top:30px}.quiet .primary{background:#dce5bc;color:#233d32;margin-top:70px}.rating{display:flex;gap:8px;margin-top:34px}.rating button{flex:1;background:var(--paper);border:1px solid var(--line);border-radius:50%;aspect-ratio:1;min-height:44px;color:var(--ink);font-size:20px}.rating button:hover{background:var(--lime)}.rating-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:10px}.finish-mark{font-size:55px;margin:35px 0;color:var(--orange)}.site-footer{max-width:1264px;margin:0 auto;display:flex;justify-content:space-between;gap:20px;padding:25px 48px;font-size:10px;color:var(--muted);border-top:1px solid var(--line)}[hidden]{display:none!important}
-@media(min-width:950px){.app-panel:has(.quiet){min-height:590px}}@media(max-width:950px){.layout{grid-template-columns:1fr 470px;gap:30px;padding:0 25px;margin-top:35px}.intro h1{font-size:37px}.brand-en{display:none}.site-header{padding:22px 25px}.intro-foot{flex-direction:column;gap:5px}}
-@media(max-width:760px){.site-header{padding:18px 20px;gap:10px}.brand{font-size:21px}.header-note{display:none}.badge{margin-left:auto}.layout{display:block;margin:24px auto 30px;padding:0 16px;max-width:530px}.intro{display:none}.app-panel{padding:25px 22px;min-height:570px;border-radius:20px}.quiet{margin:-25px -22px;padding:45px 24px;min-height:570px;border-radius:19px}h2{font-size:27px}.step-top{margin-bottom:26px}.site-footer{padding:20px;font-size:9px;flex-wrap:wrap;gap:8px}.map{height:250px}.coords{gap:8px}.rating{gap:7px}.rating button{font-size:18px}.brand-mark{width:31px;height:31px}.place-card{gap:8px;grid-template-columns:25px 1fr auto}}
-@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;scroll-behavior:auto!important}}
+/* よりみち 画面の見た目
+   色の役割：緑＝基本の色、オレンジ＝「次の場所」と進み具合だけ、青＝現在地（Googleマップの表示に合わせる） */
+:root {
+  color-scheme: light dark;
+  --paper: #f5f4ec;
+  --surface: #fffef9;
+  --ink: #233d32;
+  --muted: #646f5f;
+  --line: #dedfd3;
+  --green: #294d3c;
+  --on-green: #fffef9;
+  --lime: #dce5bc;
+  --hover: #eaf0dd;
+  --orange: #c46f34;
+  --field: #ffffff;
+  --field-line: #cdd2c4;
+  --placeholder: #979e90;
+  --error: #9b3b2f;
+  --error-bg: #fbede7;
+  --caution: #7b5418;
+  --caution-bg: #f6eedb;
+  --note: #eef1df;
+  --map-bg: #e9ecdf;
+  --road: #faf9f3;
+  --park: #d3dfbe;
+  --street-art: #e5e3d8;
+  --shadow: 0 18px 50px rgba(35, 61, 50, .06);
+  --float: 0 4px 14px rgba(20, 35, 28, .18);
+  --mincho: "Hiragino Mincho ProN", "Yu Mincho", "YuMincho", serif;
+  --gothic: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic", "YuGothic", sans-serif;
+  font-family: var(--gothic);
+  color: var(--ink);
+  background: var(--paper);
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+/* 7. ダークモード：端末の設定が暗いときに自動で切り替える */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121a16;
+    --surface: #18221d;
+    --ink: #e4e9dc;
+    --muted: #9ba696;
+    --line: #2d3933;
+    --green: #b5cf9f;
+    --on-green: #132017;
+    --lime: #2b3a2c;
+    --hover: #22302a;
+    --orange: #e6a06a;
+    --field: #0f1612;
+    --field-line: #3a473f;
+    --placeholder: #6f7a6c;
+    --error: #f2a596;
+    --error-bg: #3b211c;
+    --caution: #e7c47f;
+    --caution-bg: #302816;
+    --note: #1f2a22;
+    --map-bg: #1d2822;
+    --road: #2a3730;
+    --park: #25352a;
+    --street-art: #212c26;
+    --shadow: none;
+    --float: 0 4px 14px rgba(0, 0, 0, .45);
+  }
+}
+
+/* ---- 基本 ---- */
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); }
+h1, h2, h3, p { margin: 0; }
+h2 { font-family: var(--mincho); font-size: 28px; line-height: 1.65; font-weight: 600; letter-spacing: .04em; }
+h3 { font-size: 17px; }
+small { font-size: 12px; }
+a { color: inherit; text-underline-offset: 4px; }
+button, input, textarea, select { font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; }
+button { cursor: pointer; touch-action: manipulation; }
+button:disabled { opacity: .5; cursor: wait; }
+:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+[hidden] { display: none !important; }
+
+/* ---- ヘッダー・左側の紹介 ---- */
+.site-header { max-width: 1360px; margin: auto; padding: 28px 48px; display: flex; align-items: center; gap: 28px; border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-size: 23px; font-weight: 700; letter-spacing: .08em; }
+.brand-mark { background: var(--green); color: var(--on-green); border-radius: 50%; width: 35px; height: 35px; display: grid; place-items: center; font-size: 25px; }
+.brand-en { font-size: 9px; letter-spacing: .18em; align-self: flex-end; margin-bottom: 6px; color: var(--muted); }
+.header-note { font-size: 12px; color: var(--muted); margin-left: auto; }
+.badge { font-size: 11px; padding: 3px 10px; background: var(--lime); border-radius: 30px; white-space: nowrap; }
+
+.layout { max-width: 1230px; margin: 64px auto 44px; display: grid; grid-template-columns: 1fr 520px; gap: 85px; padding: 0 36px; align-items: start; }
+.intro { padding-top: 42px; position: sticky; top: 30px; }
+.intro h1 { font-family: var(--mincho); font-size: 49px; line-height: 1.65; letter-spacing: .08em; font-weight: 500; margin: 0 0 25px; }
+.intro > p { color: var(--muted); line-height: 2.3; font-size: 14px; }
+.walk-art { margin-top: 28px; max-width: 400px; }
+.walk-art svg { width: 100%; fill: var(--green); }
+.art-street { fill: none; stroke: var(--street-art); stroke-width: 26; }
+.art-park { fill: var(--park); }
+.art-route { fill: none; stroke: var(--green); stroke-width: 3; stroke-dasharray: 6 7; }
+.art-dot { fill: var(--orange); }
+.walk-art text { fill: var(--muted); font-size: 11px; }
+.intro-foot { border-top: 1px solid var(--line); padding-top: 20px; font-size: 12px; color: var(--muted); }
+
+/* ---- アプリの枠 ---- */
+.app-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; padding: 34px; min-height: 590px; box-shadow: var(--shadow); outline: none; }
+.step-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+.step-label { font-size: 12px; color: var(--muted); }
+.progress { display: flex; gap: 5px; }
+.progress i { display: block; width: 23px; height: 3px; background: var(--line); border-radius: 2px; }
+.progress i.active { background: var(--orange); }
+
+.lead { color: var(--muted); font-size: 13px; margin: 13px 0 25px; }
+.subtle { font-size: 12px; color: var(--muted); margin-top: 12px; }
+.pill { display: inline-block; border: 1px solid var(--line); border-radius: 30px; padding: 4px 13px; font-size: 12px; margin-bottom: 15px; background: var(--paper); }
+.field { display: block; font-size: 13px; font-weight: 600; margin: 22px 0 8px; }
+.text-field { display: block; width: 100%; border: 1px solid var(--field-line); border-radius: 12px; background: var(--field); padding: 14px; color: var(--ink); }
+textarea.text-field { min-height: 120px; resize: vertical; }
+.text-field::placeholder, .notebook::placeholder { color: var(--placeholder); }
+
+/* ボタン：↗ は外へ歩き出すボタン（.go）にだけ付ける */
+.primary, .secondary, .text-button { border-radius: 12px; min-height: 50px; padding: 12px 18px; font-weight: 600; }
+.primary { background: var(--green); color: var(--on-green); border: 0; width: 100%; display: flex; justify-content: center; align-items: center; gap: 10px; margin-top: 26px; }
+.primary.go::after { content: "↗"; font-size: 20px; font-weight: 400; }
+.secondary { background: var(--paper); color: var(--ink); border: 1px solid var(--line); }
+.secondary.wide { width: 100%; margin-top: 12px; }
+.text-button { background: transparent; border: 0; color: var(--muted); min-height: 44px; padding: 8px 4px; font-size: 13px; }
+.secondary:hover, .choice:hover { background: var(--hover); }
+.actions { display: flex; gap: 12px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
+.actions > * { flex: 1; }
+.error { padding: 13px 15px; background: var(--error-bg); color: var(--error); border-radius: 10px; font-size: 13px; margin: 15px 0; }
+
+/* ---- 初回の注意（4. 番号をやめ、左の線でまとめる） ---- */
+.notice-list { padding: 0; list-style: none; margin: 25px 0; display: grid; gap: 14px; }
+.notice-list li { border-left: 3px solid var(--lime); padding: 4px 0 4px 16px; }
+.notice-list b { font-size: 14px; display: block; }
+.notice-list p { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+/* ---- 選択肢・入力 ---- */
+.choice { display: block; text-align: left; width: 100%; background: transparent; border: 1px solid var(--line); padding: 16px 17px; border-radius: 12px; color: var(--ink); margin: 10px 0; font-size: 14px; }
+.divider { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 11px; margin: 20px 0; }
+.divider::before, .divider::after { content: ""; height: 1px; background: var(--line); flex: 1; }
+.duration-options { display: flex; gap: 10px; }
+.duration-option { flex: 1; }
+.duration-option input { position: absolute; opacity: 0; }
+.duration-option span { display: block; border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: center; font-size: 14px; }
+.duration-option input:checked + span { background: var(--green); color: var(--on-green); border-color: var(--green); }
+.duration-option input:focus-visible + span { outline: 3px solid var(--ink); outline-offset: 3px; }
+.coords { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.coords .field { margin-top: 12px; }
+.coords input { padding: 10px; min-width: 0; }
+.check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; margin-top: 18px; }
+.check input { width: 18px; height: 18px; margin-top: 3px; accent-color: var(--green); }
+
+/* ---- 地図 ---- */
+.map { height: 250px; border-radius: 14px; overflow: hidden; background: var(--map-bg); margin-top: 16px; position: relative; isolation: isolate; }
+.map svg { display: block; width: 100%; height: 100%; }
+.map-label { font-size: 11px; color: var(--muted); margin-top: 6px; }
+.mock-ground { fill: var(--map-bg); }
+.mock-road { fill: none; stroke: var(--road); stroke-width: 24; }
+.mock-park { fill: var(--park); }
+.map-pin { fill: var(--green); stroke: var(--surface); stroke-width: 3; }
+.map-pin-label { fill: var(--on-green); font-size: 11px; }
+.map-line { fill: none; stroke: var(--green); stroke-width: 4; stroke-dasharray: 7 5; }
+.map-note { display: none; } /* 説明は地図の下・上の欄に出す */
+.attribution { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 10px; color: var(--muted); margin-top: 10px; }
+.sources { font-size: 11px; color: var(--muted); margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+.mock-tools { border: 1px dashed var(--field-line); padding: 12px; border-radius: 10px; margin-top: 16px; font-size: 12px; background: var(--paper); }
+.mock-tools p { margin-bottom: 8px; }
+.mock-tools button { font-size: 12px; padding: 6px 10px; min-height: 40px; }
+
+/* ---- 9. 待ち時間：入力した言葉を大きく見せる ---- */
+.waiting { text-align: center; padding-top: 40px; }
+.loader { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--orange); margin: 0 auto 28px; animation: turn 1.4s linear infinite; }
+@keyframes turn { to { transform: rotate(360deg); } }
+.waiting-word { font-family: var(--mincho); font-size: 34px; line-height: 1.5; letter-spacing: .06em; overflow-wrap: anywhere; margin-bottom: 14px; }
+.waiting h2 { font-family: var(--gothic); font-size: 16px; font-weight: 600; letter-spacing: .02em; line-height: 1.8; }
+.time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12px; margin: 12px 0; }
+
+/* ---- 3. ルート：場所を線でつないだ「道のり」 ---- */
+.summary { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 14px; }
+.summary-time { white-space: nowrap; font-size: 13px; color: var(--muted); }
+.summary-time strong { font-size: 30px; font-weight: 500; color: var(--ink); margin-right: 3px; font-variant-numeric: tabular-nums; }
+.trail { list-style: none; padding: 0; margin: 22px 0 0; }
+.trail > li { position: relative; padding-left: 42px; }
+.trail > li::before { content: ""; position: absolute; left: 13px; top: 0; bottom: 0; border-left: 2px dotted var(--green); }
+.trail-start::before { top: 50% !important; }
+.trail-stop:last-child::before { bottom: auto !important; height: 28px; }
+.trail-dot { position: absolute; left: 0; top: 14px; z-index: 1; width: 28px; height: 28px; border-radius: 50%; background: var(--surface); border: 2px solid var(--green); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.trail-start { padding-top: 6px; padding-bottom: 6px; font-size: 13px; }
+.trail-start .trail-dot { width: 14px; height: 14px; left: 7px; top: 50%; transform: translateY(-50%); background: var(--green); }
+.trail-leg { padding-top: 6px; padding-bottom: 6px; font-size: 11px; color: var(--muted); }
+.trail-stop { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding-top: 14px; padding-bottom: 14px; }
+.trail-body h3 { font-size: 16px; line-height: 1.5; }
+.trail-body p { font-size: 13px; margin-top: 2px; }
+.trail-body a { display: inline-block; font-size: 11px; margin-top: 6px; }
+.place-kind { display: block; font-size: 11px; color: var(--muted); }
+.remove { align-self: start; background: transparent; border: 0; color: var(--muted); font-size: 11px; min-height: 44px; min-width: 44px; padding: 8px 4px; text-decoration: underline; text-underline-offset: 3px; }
+.remove:hover { color: var(--ink); }
+.warning { display: inline-block; font-size: 12px !important; color: var(--caution); background: var(--caution-bg); border-radius: 8px; padding: 4px 10px; margin-top: 8px !important; }
+.warning::before { content: "△ "; }
+
+/* ---- 1. 歩行中：地図を主役に、下に重なるパネル ---- */
+/* overflow: hidden だと「着いた」の固定表示が効かないため clip を使う */
+.app-panel:has(.walk-screen) { padding: 0; overflow: clip; }
+.walk-map-wrap { position: relative; }
+.map.walk-map { height: 420px; margin: 0; border-radius: 0; }
+.map-notes { position: absolute; top: 10px; left: 10px; max-width: 58%; display: grid; gap: 6px; justify-items: start; z-index: 2; }
+.map-notes .attribution, .map-notes .map-label { margin: 0; background: var(--surface); padding: 3px 8px; border-radius: 8px; box-shadow: var(--float); }
+.map-tools { position: absolute; top: 10px; right: 10px; z-index: 2; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.map-button { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; min-height: 40px; padding: 6px 14px; font-size: 12px; font-weight: 600; box-shadow: var(--float); }
+.sheet { position: relative; z-index: 3; margin-top: -22px; background: var(--surface); border-radius: 22px 22px 0 0; padding: 10px 30px 24px; }
+.sheet-handle { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 14px; }
+.sheet-step { font-size: 12px; font-weight: 600; color: var(--orange); }
+.walk-distance { font-size: 58px; font-weight: 400; line-height: 1.1; letter-spacing: -.03em; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
+.walk-distance small { font-size: 20px; letter-spacing: 0; margin-left: 4px; }
+.walk-direction { font-size: 13px; color: var(--muted); }
+.next-place { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+.next-place h3 { display: flex; align-items: center; gap: 8px; }
+.next-place h3::before { content: ""; flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--orange); }
+.next-place p { font-size: 13px; color: var(--muted); margin-top: 4px; }
+.geo-status { font-size: 12px; color: var(--muted); margin-top: 14px; }
+.sheet-action { position: sticky; bottom: 0; z-index: 4; margin: 0 -6px; padding: 16px 6px calc(14px + env(safe-area-inset-bottom)); background: linear-gradient(to bottom, transparent, var(--surface) 35%); }
+.sheet-action .primary { margin: 0; }
+.sheet-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+
+/* ---- 5. メモ：散歩の手帳 ---- */
+.question { font-size: 30px; line-height: 1.75; margin-top: 10px; }
+.notebook { display: block; width: 100%; min-height: calc(2.2em * 4); resize: vertical; border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: 0 2px; color: var(--ink); font-family: var(--mincho); font-size: 16px; line-height: 2.2em; background: transparent repeating-linear-gradient(to bottom, transparent 0, transparent calc(2.2em - 1px), var(--line) calc(2.2em - 1px), var(--line) 2.2em); background-attachment: local; }
+.notebook:focus-visible { outline: none; box-shadow: inset 3px 0 0 var(--green); padding-left: 12px; }
+
+/* ---- 6. 歩いた記録：日ごとの日記 ---- */
+.diary-title { font-size: 30px; }
+.diary-day { margin-top: 28px; }
+.diary-date { font-size: 13px; color: var(--muted); padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.walk-log { list-style: none; padding: 0; margin: 0; }
+.walk-log > li { padding: 16px 0 18px; border-bottom: 1px dashed var(--line); }
+.walk-log-head { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.walk-log-mood { font-family: var(--mincho); font-size: 22px; line-height: 1.5; margin-top: 2px; overflow-wrap: anywhere; }
+.walk-log-pref { font-size: 12px; color: var(--muted); }
+.visit-list { list-style: none; position: relative; margin: 12px 0 0; padding: 0 0 0 22px; }
+.visit-list::before { content: ""; position: absolute; left: 4px; top: 12px; bottom: 12px; border-left: 2px dotted var(--field-line); }
+.visit-list li { position: relative; padding: 6px 0; }
+.visit-list li::before { content: ""; position: absolute; left: -22px; top: 13px; width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 2px solid var(--green); }
+.visit-list b { display: block; font-size: 14px; }
+.note { font-family: var(--mincho); font-size: 14px; line-height: 1.9; background: var(--note); border-radius: 2px 12px 12px 12px; padding: 8px 12px; margin-top: 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ---- 完了・案内 ---- */
+.finish-mark { font-size: 55px; margin: 35px 0; color: var(--green); }
+.blocked { padding: 40px 0; }
+.blocked p { font-size: 16px; line-height: 2; white-space: pre-wrap; }
+
+.site-footer { max-width: 1264px; margin: 0 auto; display: flex; justify-content: space-between; gap: 20px; padding: 25px 48px calc(25px + env(safe-area-inset-bottom)); font-size: 10px; color: var(--muted); border-top: 1px solid var(--line); }
+
+/* ---- 画面幅 ---- */
+@media (max-width: 950px) {
+  .layout { grid-template-columns: 1fr 470px; gap: 30px; padding: 0 25px; margin-top: 35px; }
+  .intro h1 { font-size: 37px; }
+  .brand-en { display: none; }
+  .site-header { padding: 22px 25px; }
+}
+
+@media (max-width: 760px) {
+  .site-header { padding: 14px 18px; gap: 10px; }
+  .brand { font-size: 20px; }
+  .brand-mark { width: 30px; height: 30px; font-size: 21px; }
+  .header-note { display: none; }
+  .site-header .badge { margin-left: auto; }
+  .layout { display: block; margin: 20px auto 30px; padding: 0 14px; max-width: 530px; }
+  .intro { display: none; }
+  .app-panel { padding: 24px 20px; min-height: 570px; border-radius: 20px; }
+  h2 { font-size: 25px; }
+  .question, .diary-title { font-size: 26px; }
+  .step-top { margin-bottom: 22px; }
+  .coords { gap: 8px; }
+  /* iPhoneで入力欄が自動で拡大されないよう16px以上にする */
+  .text-field, .notebook { font-size: 16px; }
+
+  /* 2. 主なボタンを画面の下に固定し、親指が届く位置に置く */
+  #mood-form .primary, #setup-form .primary, #reflect-form .primary, #start {
+    position: sticky; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 5; box-shadow: var(--float);
+  }
+
+  /* 1. 歩行中は地図を画面の端まで広げる */
+  .layout:has(.walk-screen) { padding: 0; margin-top: 0; max-width: none; }
+  .app-panel:has(.walk-screen) { border: 0; border-radius: 0; min-height: 0; box-shadow: none; }
+  .map.walk-map { height: 56vh; height: 56svh; min-height: 300px; }
+  .sheet { padding: 10px 20px 20px; }
+  .walk-distance { font-size: 52px; }
+
+  .site-footer { padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); font-size: 9px; flex-wrap: wrap; gap: 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; scroll-behavior: auto !important; }
+}
