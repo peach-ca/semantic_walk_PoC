@@ -1,0 +1,18 @@
+{
+  "question": "どんなふうに過ごしたいですか？",
+  "options": [
+    {
+      "label": "景色を見て、気持ちを流したい",
+      "crowd": "neutral"
+    },
+    {
+      "label": "人の少ない場所で、ひと息つきたい",
+      "crowd": "avoid"
+    },
+    {
+      "label": "街のにぎわいに、少し元気をもらいたい",
+      "crowd": "ok"
+    }
+  ],
+  "blocked": null
+}
