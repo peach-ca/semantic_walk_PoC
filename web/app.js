@@ -67,7 +67,7 @@ function boot() {
   };
   const savedExcluded = storage.get('excluded', []);
   const state = { screen: storage.get('notice', false) ? 'mood' : 'notice', mood: '', preference: '', crowd: 'neutral', minutes: 45,
-    origin: {lat:34.9949,lon:135.7850}, excluded: Array.isArray(savedExcluded) ? savedExcluded.filter(x => typeof x === 'string').slice(-200) : [],
+    origin: mock ? {lat:34.9949,lon:135.7850} : {lat:35.0262,lon:135.7808}, excluded: Array.isArray(savedExcluded) ? savedExcluded.filter(x => typeof x === 'string').slice(-200) : [],
     skipVisited: !mock, clarify:null, route:null, index:0, position:null, follow:true, walk:null, lastWalk:null,
     error:'', geoMessage:'', blocked:'', historyBack:'mood' };
   let controller = null, timer = null, watch = null, map = null, overlays = [], userMarker = null, accuracyCircle = null, originMarker = null,
