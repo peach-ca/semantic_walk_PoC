@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 
 from . import osm_data, places_check, route, selector
 from .llm import LLMError
-from .safety import BLOCK_MESSAGE, JST, RateLimiter, decide, is_crisis
+from .safety import BLOCK_MESSAGE, JST, RateLimiter, decide, is_crisis, static_ok
 
 log = logging.getLogger("walk")
 logging.basicConfig(level=logging.INFO)
@@ -34,7 +34,7 @@ app = FastAPI(title="walk api")
 clarify_limiter = RateLimiter(per_ip_per_hour=20, global_per_day=200)
 route_limiter = RateLimiter(per_ip_per_hour=int(os.environ.get("ROUTE_PER_IP_HOUR", "6")),
                             global_per_day=int(os.environ.get("ROUTE_DAILY_LIMIT", "30")))
-MAX_VERIFY = 6  # Places で確認する場所の上限（1ルートあたりの呼び出し回数の上限）
+MAX_VERIFY = 8  # Places で確認する場所の上限（1ルートあたりの呼び出し回数の上限）
 
 ATTRIBUTIONS = ["© OpenStreetMap contributors"]
 SOURCES = [{"title": "OpenStreetMap", "uri": "https://www.openstreetmap.org/copyright"}]
@@ -125,21 +125,32 @@ def make_route(body: RouteReq, req: Request):
             picked.insert(0, {**p, "dist": round(d), "hint": "あなたが選んだ場所", "_must": True})
     t1 = time.time()
 
-    # 2) 先に OSM の座標で時間に収まる順番を決め、確認するのは実際に回る場所だけ（Places の回数を減らす）
-    start_must = {p["id"] for p in picked if p.get("_must")}
-    ordered = route.order_and_fit(start, picked, body.minutes, set(start_must))[:MAX_VERIFY]
-
-    # 3) Places で確認（営業時間はお店だけ取る）→ ルールで除外
+    # 2) Google に聞かずに外せるものを先に外す
     now = datetime.now(JST)
-    googles = places_check.lookup_many(ordered, [osm_data.category(p) == "shop" for p in ordered])
-    kept = []
-    for p, g in zip(ordered, googles):
-        if p.get("_must"):
-            keep, warning = True, None
-        else:
-            keep, warning = decide(p, g, body.crowd, now)
-        if keep:
-            kept.append({**p, "_google": g, "warning": warning})
+    pool = [p for p in picked if p.get("_must") or static_ok(p, body.crowd, now)]
+    must = {p["id"] for p in pool if p.get("_must")}
+
+    # 3) 時間に収まる順番を決め、回る場所だけ Places で確認。外れて時間が余ったら、残りの候補で埋め直す
+    #    （Places の呼び出しは 1ルート最大 MAX_VERIFY 回）
+    checked_on = places_check.enabled()
+    verified: dict[str, dict] = {}   # id -> 残った場所（warning 付き）
+    rejected: set[str] = set()
+    calls = 0
+    for _ in range(3):
+        cands = [verified.get(p["id"], p) for p in pool if p["id"] not in rejected]
+        ordered = route.order_and_fit(start, cands, body.minutes, set(must))
+        todo = [p for p in ordered if p["id"] not in verified][: MAX_VERIFY - calls]
+        if not todo:
+            break
+        googles = places_check.lookup_many(todo, [osm_data.category(p) == "shop" for p in todo])
+        calls += len(todo) if checked_on else 0
+        for p, g in zip(todo, googles):
+            keep, warning = (True, None) if p.get("_must") else decide(p, g, body.crowd, now, checked_on)
+            if keep:
+                verified[p["id"]] = {**p, "_google": g, "warning": warning}
+            else:
+                rejected.add(p["id"])
+    kept = route.order_and_fit(start, list(verified.values()), body.minutes, set(must))
     t2 = time.time()
     if not kept:
         return err(404, "いま開いていて行ける場所が見つかりませんでした。時間や気分を変えてみてください")
@@ -152,8 +163,8 @@ def make_route(body: RouteReq, req: Request):
         log.warning("routes failed: %s", e)
         return err(502, "歩くルートを作れませんでした。もう一度お願いします")
     t3 = time.time()
-    log.info("route: select %.1fs / places %.1fs / routes %.1fs, %d→%d→%d places",
-             t1 - t0, t2 - t1, t3 - t2, len(picked), len(kept), len(ordered))
+    log.info("route: select %.1fs / places %.1fs (%d calls) / routes %.1fs, picked %d → kept %d, %d min",
+             t1 - t0, t2 - t1, calls, t3 - t2, len(picked), len(ordered), rt["total_minutes"])
 
     places = []
     for p in ordered:

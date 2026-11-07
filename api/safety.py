@@ -89,20 +89,35 @@ PRIVATE_WORDS = ["マンション", "アパート", "社宅", "寮", "工場", "
 WATER_WORDS = ["川", "池", "滝", "沼"]
 
 
-def decide(place: dict, google: dict | None, crowd: str, now: datetime) -> tuple[bool, str | None]:
+def static_ok(place: dict, crowd: str, now: datetime) -> bool:
+    """Google に聞かなくても決められる除外（私有地っぽい名前・有名所・暗い時間の屋外）。"""
+    name = place["name"]
+    if any(w in name for w in PRIVATE_WORDS):
+        return False
+    if crowd == "avoid" and (any(f in name for f in FAMOUS_SPOTS) or near_famous(place["lat"], place["lon"])):
+        return False
+    if is_dark(now) and category(place) in ("outdoor", "worship", "historic"):
+        return False
+    return True
+
+
+def decide(place: dict, google: dict | None, crowd: str, now: datetime,
+           checked: bool = True) -> tuple[bool, str | None]:
     """場所を残すかどうかと、注意書き（なければ None）を返す。
 
-    place  : OSM の場所（name, key, value, lat, lon）
-    google : Places API の結果（見つからなければ None）。中身は判定にだけ使い、Gemini には渡さない
+    place   : OSM の場所（name, key, value, lat, lon）
+    google  : Places API の結果（見つからなければ None）。判定にだけ使い、Gemini には渡さない
+    checked : False なら Places を呼んでいない（開発モード）。お店も残し、注意書きで知らせる
     """
+    if not static_ok(place, crowd, now):
+        return False, None
     cat = category(place)
-    name = place["name"]
     dark = is_dark(now)
 
-    if any(w in name for w in PRIVATE_WORDS):
-        return False, None
-
-    if google:
+    if not checked:
+        if cat == "shop":
+            return True, "（開発モード）営業しているか未確認"
+    elif google:
         status = google.get("businessStatus")
         if status and status != "OPERATIONAL":
             return False, None  # CLOSED_TEMPORARILY / CLOSED_PERMANENTLY
@@ -111,32 +126,20 @@ def decide(place: dict, google: dict | None, crowd: str, now: datetime) -> tuple
         hours = google.get("currentOpeningHours")
         if hours is not None and hours.get("openNow") is False:
             return False, None
-        if hours is None:
-            # 営業時間がわからない（お店以外は料金節約のため取っていない）
-            if cat == "shop":
-                return False, None
-            if dark:
-                return False, None
+        if hours is None and (cat == "shop" or dark):
+            return False, None  # 営業時間がわからない（お店以外は料金節約のため取っていない）
     else:
         # Google で見つからなかった：店は閉店の可能性があるので外す。それ以外は明るいうちだけ
         if cat == "shop" or dark:
             return False, None
 
-    if crowd == "avoid":
-        if any(f in name for f in FAMOUS_SPOTS) or near_famous(place["lat"], place["lon"]):
-            return False, None
-
-    if dark and cat in ("outdoor", "worship", "historic"):
-        return False, None
-
-    warning = None
-    if any(w in name for w in WATER_WORDS) or place["value"] == "water":
-        warning = "水辺です。足元に気をつけて"
-    elif cat == "outdoor" or place["value"] in ("viewpoint",):
-        warning = "屋外です。暗くなる前に"
-    elif not google:
-        warning = "地図で確認できなかった場所です。入れなさそうなら次へ"
-    return True, warning
+    if any(w in place["name"] for w in WATER_WORDS) or place["value"] == "water":
+        return True, "水辺です。足元に気をつけて"
+    if cat == "outdoor" or place["value"] == "viewpoint":
+        return True, "屋外です。暗くなる前に"
+    if checked and not google:
+        return True, "地図で確認できなかった場所です。入れなさそうなら次へ"
+    return True, None
 
 
 # ---------- アクセス数の制限（Cloud Run は max-instances 1 なのでメモリで数える） ----------
