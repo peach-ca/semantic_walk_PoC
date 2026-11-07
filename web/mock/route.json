@@ -1,0 +1,45 @@
+{
+  "interpretation": "これは操作確認用の見本です。京都の坂道や路地を、少し違う気分で眺める散歩。",
+  "places": [
+    {
+      "id": "osm:node/900000000001",
+      "place_id": null,
+      "name": "清閑寺",
+      "kind": "寺社",
+      "lat": 34.9921,
+      "lon": 135.7869,
+      "hint": "坂の上で、街の広がりを感じる",
+      "warning": "見本です。開門時間・立入可否を現地で確認してください。",
+      "maps_uri": "https://www.google.com/maps/search/?api=1&query=%E6%B8%85%E9%96%91%E5%AF%BA"
+    },
+    {
+      "id": "osm:node/900000000002",
+      "place_id": null,
+      "name": "三年坂",
+      "kind": "街路",
+      "lat": 34.9966,
+      "lon": 135.7805,
+      "hint": "石段と軒先に、昔の街の気配を探す",
+      "warning": "坂・階段があります。混雑時は無理をせずに。",
+      "maps_uri": null
+    },
+    {
+      "id": "osm:node/900000000003",
+      "place_id": null,
+      "name": "八坂の塔（法観寺）周辺",
+      "kind": "街路",
+      "lat": 34.9985,
+      "lon": 135.7793,
+      "hint": "路地の先に見える、いつもと違う空",
+      "warning": "周辺の公道から眺める見本です。私有地には入らないでください。",
+      "maps_uri": null
+    }
+  ],
+  "polyline": "c}qtEgow{XnP{Jc[~f@{JnF",
+  "total_minutes": 42,
+  "sources": [],
+  "attributions": [
+    "© OpenStreetMap contributors"
+  ],
+  "blocked": null
+}
