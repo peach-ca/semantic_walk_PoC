@@ -85,4 +85,20 @@ def estimate(start: tuple[float, float], ordered: list[dict]) -> dict:
     pts = [start] + [(p["lat"], p["lon"]) for p in ordered] + [start]
     walk = sum(_walk_min(a, b) for a, b in zip(pts, pts[1:]))
     dist = sum(haversine(a[0], a[1], b[0], b[1]) * DETOUR for a, b in zip(pts, pts[1:]))
-    return {"polyline": "", "distance_m": round(dist), "total_minutes": round(walk + STAY_MIN * len(ordered))}
+    return {"polyline": encode_polyline(pts), "distance_m": round(dist),
+            "total_minutes": round(walk + STAY_MIN * len(ordered))}
+
+
+def encode_polyline(points: list[tuple[float, float]]) -> str:
+    """Google の encoded polyline 形式（直線をつないだだけ。道に沿ってはいない）。"""
+    out, plat, plon = [], 0, 0
+    for lat, lon in points:
+        ilat, ilon = round(lat * 1e5), round(lon * 1e5)
+        for d in (ilat - plat, ilon - plon):
+            v = ~(d << 1) if d < 0 else d << 1
+            while v >= 0x20:
+                out.append(chr((0x20 | (v & 0x1F)) + 63))
+                v >>= 5
+            out.append(chr(v + 63))
+        plat, plon = ilat, ilon
+    return "".join(out)

@@ -31,6 +31,15 @@ log = logging.getLogger("walk")
 logging.basicConfig(level=logging.INFO)
 
 app = FastAPI(title="walk api")
+
+
+from fastapi.exceptions import RequestValidationError  # noqa: E402
+
+
+@app.exception_handler(RequestValidationError)
+async def _invalid(_req, exc):
+    log.info("invalid request: %s", exc.errors()[:3])
+    return JSONResponse({"error": "入力の形が正しくありません。長すぎる入力がないか確認してください。"}, status_code=422)
 # /api/route は Places（有料）を呼ぶので厳しめ。上限は環境変数で変えられる
 clarify_limiter = RateLimiter(per_ip_per_hour=20, global_per_day=200)
 route_limiter = RateLimiter(per_ip_per_hour=int(os.environ.get("ROUTE_PER_IP_HOUR", "6")),
@@ -38,6 +47,8 @@ route_limiter = RateLimiter(per_ip_per_hour=int(os.environ.get("ROUTE_PER_IP_HOU
 MAX_VERIFY = 8  # Places で確認する場所の上限（1ルートあたりの呼び出し回数の上限）
 
 ATTRIBUTIONS = ["© OpenStreetMap contributors"]
+# 画面は data.blocked.message を見る。古い形（data.message）でも読めるよう両方入れる
+BLOCKED = {"blocked": {"message": BLOCK_MESSAGE}, "message": BLOCK_MESSAGE}
 SOURCES = [{"title": "OpenStreetMap", "uri": "https://www.openstreetmap.org/copyright"}]
 
 
@@ -60,17 +71,17 @@ def check_limit(req: Request, limiter: RateLimiter) -> JSONResponse | None:
 
 # ---------- モデル ----------
 class ClarifyReq(BaseModel):
-    mood: str = Field(min_length=1, max_length=100)
+    mood: str = Field(min_length=1, max_length=200)
 
 
 class RouteReq(BaseModel):
-    mood: str = Field(min_length=1, max_length=100)
-    preference: str | None = Field(default=None, max_length=60)
+    mood: str = Field(min_length=1, max_length=200)
+    preference: str | None = Field(default=None, max_length=200)
     crowd: Literal["avoid", "neutral", "ok"] = "neutral"
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
     minutes: int = Field(default=60, ge=15, le=120)
-    exclude_ids: list[str] = Field(default_factory=list, max_length=50)
+    exclude_ids: list[str] = Field(default_factory=list, max_length=200)
     include_ids: list[str] = Field(default_factory=list, max_length=5)
 
 
@@ -83,7 +94,7 @@ def health():
 @app.post("/api/clarify")
 def clarify(body: ClarifyReq, req: Request):
     if is_crisis(body.mood):
-        return {"question": "", "options": [], "blocked": True, "message": BLOCK_MESSAGE}
+        return {"question": "", "options": [], **BLOCKED}
     if (r := check_limit(req, clarify_limiter)) is not None:
         return r
     try:
@@ -97,7 +108,7 @@ def clarify(body: ClarifyReq, req: Request):
 @app.post("/api/route")
 def make_route(body: RouteReq, req: Request):
     if is_crisis(body.mood) or (body.preference and is_crisis(body.preference)):
-        return {"blocked": True, "message": BLOCK_MESSAGE, "places": []}
+        return {"places": [], **BLOCKED}
     if (r := check_limit(req, route_limiter)) is not None:
         return r
 
@@ -206,8 +217,8 @@ write_limiter = RateLimiter(per_ip_per_hour=120, global_per_day=3000)
 
 
 class WalkReq(BaseModel):
-    mood: str = Field(min_length=1, max_length=100)
-    preference: str | None = Field(default=None, max_length=60)
+    mood: str = Field(min_length=1, max_length=200)
+    preference: str | None = Field(default=None, max_length=200)
     crowd: Literal["avoid", "neutral", "ok"] = "neutral"
     minutes: int = Field(ge=15, le=120)
     total_minutes: int | None = Field(default=None, ge=0, le=300)
@@ -273,7 +284,7 @@ def walks(req: Request, device: str = Device):
 def add_comment(body: CommentReq, req: Request, device: str = Device):
     """その場所についての自分用メモ。本人にしか見えない。"""
     if is_crisis(body.text):
-        return {"blocked": True, "message": BLOCK_MESSAGE}
+        return BLOCKED
     r = _store_call(req, store.add_comment, device, body.place_id, body.text, body.walk_id)
     return r if isinstance(r, JSONResponse) else {**r, "blocked": False}
 
