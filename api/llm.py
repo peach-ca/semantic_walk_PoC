@@ -49,6 +49,8 @@ def ask_json(prompt: str, schema: Type[T], temperature: float = 0.4) -> T:
         + "\n\n# 出力形式\n次の JSON Schema に従う JSON だけを出力すること。説明文やコードブロックは付けない。\n"
         + json.dumps(schema.model_json_schema(), ensure_ascii=False)
     )
+    if os.environ.get("LLM_PROVIDER", "gemini").lower() == "openai":
+        return _ask_openai(full, schema, temperature)  # 比較実験用（提出版では使わない）
     cfg = types.GenerateContentConfig(
         response_mime_type="application/json",
         temperature=temperature,
@@ -72,3 +74,31 @@ def ask_json(prompt: str, schema: Type[T], temperature: float = 0.4) -> T:
                     continue
                 raise LLMError(str(e)) from e
     raise LLMError(f"Gemini の呼び出しに失敗しました: {last}")
+
+
+def _ask_openai(full: str, schema: Type[T], temperature: float) -> T:
+    """比較実験用。LLM_PROVIDER=openai のときだけ使う。
+
+    必要: `uv add --dev openai`、.env に OPENAI_API_KEY と OPENAI_MODEL。
+    渡すのは OSM の候補とユーザーの気分だけ（Places の結果は渡さない）。
+    """
+    from openai import OpenAI  # 本番イメージには入れない（requirements.txt に書かない）
+
+    model = os.environ.get("OPENAI_MODEL")
+    if not model:
+        raise LLMError("OPENAI_MODEL が設定されていません")
+    last: Exception | None = None
+    for _ in range(2):
+        try:
+            res = OpenAI().chat.completions.create(  # OPENAI_API_KEY は環境変数から読まれる
+                model=model,
+                messages=[{"role": "user", "content": full}],
+                response_format={"type": "json_object"},
+                temperature=temperature,
+            )
+            return schema.model_validate_json(res.choices[0].message.content or "")
+        except ValidationError as e:
+            last = e
+        except Exception as e:  # noqa: BLE001
+            raise LLMError(f"OpenAI の呼び出しに失敗しました: {e}") from e
+    raise LLMError(f"OpenAI の出力が形式に合いませんでした: {last}")

@@ -56,7 +56,7 @@ def compute(start: tuple[float, float], ordered: list[dict]) -> dict:
     """出発地 → 場所たち → 出発地 の歩くルート。polyline と所要時間（分、滞在込み）を返す。"""
     key = os.environ.get("MAPS_API_KEY")
     if not key:
-        raise RuntimeError("MAPS_API_KEY が設定されていません")
+        return estimate(start, ordered)  # キーがない環境（相方の実験など）では直線距離で概算
     body = {
         "origin": _ll(*start),
         "destination": _ll(*start),
@@ -78,3 +78,11 @@ def compute(start: tuple[float, float], ordered: list[dict]) -> dict:
         "distance_m": rt.get("distanceMeters", 0),
         "total_minutes": round(walk_sec / 60 + STAY_MIN * len(ordered)),
     }
+
+
+def estimate(start: tuple[float, float], ordered: list[dict]) -> dict:
+    """Routes API を使わない概算。polyline は空、時間は直線距離×1.3÷70m/分＋滞在。"""
+    pts = [start] + [(p["lat"], p["lon"]) for p in ordered] + [start]
+    walk = sum(_walk_min(a, b) for a, b in zip(pts, pts[1:]))
+    dist = sum(haversine(a[0], a[1], b[0], b[1]) * DETOUR for a, b in zip(pts, pts[1:]))
+    return {"polyline": "", "distance_m": round(dist), "total_minutes": round(walk + STAY_MIN * len(ordered))}
