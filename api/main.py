@@ -11,7 +11,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import os
 import time
 from datetime import datetime
@@ -202,112 +201,6 @@ def make_route(body: RouteReq, req: Request):
         "attributions": ATTRIBUTIONS,
         "blocked": False,
     }
-
-
-# ---------- 記録（Firestore） ----------
-# ユーザーの区別は、ブラウザが作るランダムな ID（ヘッダー X-Device-Id、UUID）。ログインはない。
-# 出発地の座標とルートの線は受け取らない・保存しない。
-from fastapi import Header  # noqa: E402
-
-from . import store  # noqa: E402
-
-DEVICE_RE = r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-ID_RE = r"^[A-Za-z0-9]{1,40}$"
-write_limiter = RateLimiter(per_ip_per_hour=120, global_per_day=3000)
-
-
-class WalkReq(BaseModel):
-    mood: str = Field(min_length=1, max_length=200)
-    preference: str | None = Field(default=None, max_length=200)
-    crowd: Literal["avoid", "neutral", "ok"] = "neutral"
-    minutes: int = Field(ge=15, le=120)
-    total_minutes: int | None = Field(default=None, ge=0, le=300)
-    place_ids: list[str] = Field(min_length=1, max_length=12)
-
-
-class VisitReq(BaseModel):
-    place_id: str = Field(max_length=60)
-    rating: int | None = Field(default=None, ge=1, le=5)
-
-
-class CommentReq(BaseModel):
-    place_id: str = Field(max_length=60)
-    text: str = Field(min_length=1, max_length=200)
-    walk_id: str | None = Field(default=None, pattern=ID_RE)
-
-
-Device = Header(alias="X-Device-Id", pattern=DEVICE_RE)
-
-
-def _store_call(req: Request, fn, *args, write: bool = True):
-    if write and (r := check_limit(req, write_limiter)) is not None:
-        return r
-    try:
-        return fn(*args)
-    except store.NotFound as e:
-        return err(404, str(e))
-    except Exception as e:  # noqa: BLE001
-        log.warning("store failed: %s", e)
-        return err(503, "記録の保存先につながりませんでした。少ししてからもう一度お願いします")
-
-
-@app.post("/api/walks")
-def start_walk(body: WalkReq, req: Request, device: str = Device):
-    """「歩きはじめる」を押したときに呼ぶ。散歩の記録を作り walk_id を返す。"""
-    return _store_call(req, store.create_walk, device, body.mood, body.preference, body.crowd,
-                       body.minutes, body.total_minutes, body.place_ids)
-
-
-@app.post("/api/walks/{walk_id}/visits")
-def visit(walk_id: str, body: VisitReq, req: Request, device: str = Device):
-    """「着いた」を押したとき（rating なし）、評価を選んだとき（rating 1〜5）に呼ぶ。"""
-    if not re.fullmatch(ID_RE, walk_id):
-        return err(400, "walk_id の形が正しくありません")
-    return _store_call(req, store.add_visit, device, walk_id, body.place_id, body.rating)
-
-
-@app.post("/api/walks/{walk_id}/finish")
-def finish(walk_id: str, req: Request, device: str = Device):
-    if not re.fullmatch(ID_RE, walk_id):
-        return err(400, "walk_id の形が正しくありません")
-    return _store_call(req, store.finish_walk, device, walk_id)
-
-
-@app.get("/api/walks")
-def walks(req: Request, device: str = Device):
-    """これまでの散歩（新しい順に20件）と、それぞれの場所に着いた日時・評価。"""
-    r = _store_call(req, store.list_walks, device, write=False)
-    return r if isinstance(r, JSONResponse) else {"walks": r}
-
-
-@app.post("/api/comments")
-def add_comment(body: CommentReq, req: Request, device: str = Device):
-    """その場所についての自分用メモ。本人にしか見えない。"""
-    if is_crisis(body.text):
-        return BLOCKED
-    r = _store_call(req, store.add_comment, device, body.place_id, body.text, body.walk_id)
-    return r if isinstance(r, JSONResponse) else {**r, "blocked": False}
-
-
-@app.get("/api/comments")
-def place_history(place_id: str, req: Request, device: str = Device):
-    """その場所についての自分のメモと、訪れた日時。"""
-    return _store_call(req, store.place_history, device, place_id, write=False)
-
-
-@app.delete("/api/comments/{comment_id}")
-def delete_comment(comment_id: str, req: Request, device: str = Device):
-    if not re.fullmatch(ID_RE, comment_id):
-        return err(400, "comment_id の形が正しくありません")
-    r = _store_call(req, store.delete_comment, device, comment_id)
-    return r if isinstance(r, JSONResponse) else {"deleted": True}
-
-
-@app.delete("/api/me")
-def delete_me(req: Request, device: str = Device):
-    """このブラウザの記録をすべて消す。"""
-    r = _store_call(req, store.delete_all, device)
-    return r if isinstance(r, JSONResponse) else {"deleted": True}
 
 
 # ---------- 画面（web/ があれば同じサーバーで配る） ----------
