@@ -133,7 +133,8 @@ function boot() {
     origin: mock ? {lat:34.9949,lon:135.7850} : {lat:35.0262,lon:135.7808},
     excluded: Array.isArray(savedExcluded) ? savedExcluded.filter(x => typeof x === 'string').slice(-200) : [],
     clarify:null, route:null, index:0, position:null, follow:true, walk:null, lastWalk:null,
-    recordTrack:false, trackNotice:'', progressAlong:0, trail:[], showPast: storage.get('showPast', false) === true, restartPosition:null, originNote:'', saveNotice:'', error:'', geoMessage:'', blocked:'', historyBack:'mood' };
+    // recordTrack：「歩いた道と記録を保存する」は最初からオン。保存したくない人が外す
+    recordTrack:true, trackNotice:'', progressAlong:0, trail:[], showPast: storage.get('showPast', false) === true, restartPosition:null, originNote:'', saveNotice:'', error:'', geoMessage:'', blocked:'', historyBack:'mood' };
   let controller = null, timer = null, watch = null, map = null, overlays = [], userMarker = null, accuracyCircle = null, originMarker = null,
     routeBounds = null, passedLine = null, remainLine = null, trailLine = null, pastLines = [], geoCache = {route:null, origin:null, value:null}, mapPromise = null, configChecked = false, requestToken = 0, mapsAuthError = false;
 
@@ -230,7 +231,7 @@ function boot() {
     // 前の散歩の気分・予定時間・ルートは引き継がない。履歴と除外記録は消さない。
     requestToken++; controller?.abort(); stopWatch(); clearActive();
     Object.assign(state,{mood:'',preference:'',crowd:'neutral',minutes:45,clarify:null,route:null,index:0,position:null,
-      follow:true,walk:null,lastWalk:null,recordTrack:false,geoMessage:'',restartPosition:null,origin:{...origin},originNote:note,saveNotice:''});
+      follow:true,walk:null,lastWalk:null,recordTrack:true,geoMessage:'',restartPosition:null,origin:{...origin},originNote:note,saveNotice:''});
     go('mood');
   }
   async function restartFromHere() {
