@@ -14,6 +14,10 @@ from pathlib import Path
 
 DATA = Path(os.environ.get("PLACES_JSON", Path(__file__).parent / "data" / "places.json"))
 
+# データを切り出した範囲（scripts/get_osm.sh と同じ）。外から使われたときの案内に使う
+AREA_CENTER = (35.0030, 135.7650)
+AREA_RADIUS_M = 5000
+
 # 種類ごとに上限を設けて、カフェや店ばかりにならないようにする
 PER_KIND = 6
 MAX_ITEMS = 150
