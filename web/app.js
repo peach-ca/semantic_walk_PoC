@@ -286,10 +286,10 @@ function boot() {
       event('#preference-form','submit',e=>{e.preventDefault();state.preference=$('#preference').value.trim();if(!state.preference)return setError('気分を入力するか、選択肢・おまかせを選んでください。');state.crowd=$('#crowd').value;go('setup');});
       event('#surprise','click',()=>{state.preference=state.mood;state.crowd='neutral';go('setup');});event('#back','click',()=>go('mood'));
     } else if (s === 'setup') {
-      app.innerHTML = `${progress(3)}<h2>どこから、<br>どのくらい歩こう。</h2><p class="lead">${esc(state.preference)}</p><form id="setup-form"><fieldset style="border:0;padding:0;margin:0"><legend class="field">散歩の時間</legend><div class="duration-options">${[30,45,60].map(n=>`<label class="duration-option"><input type="radio" name="minutes" value="${n}" ${state.minutes===n?'checked':''}><span>${n}分</span></label>`).join('')}</div></fieldset><label class="field">出発地</label>${button('locate','◎ 現在地を使う','secondary')}<p id="geo-status" class="subtle" role="status">${mock?'見本モードでは、出発地を変えても見本の場所は同じです。':'地図をタップするか、座標を入力してください。'}</p>${mapMarkup()}<div class="coords"><div><label for="lat" class="field">緯度</label><input id="lat" class="text-field" type="number" step="any" min="-90" max="90" required value="${state.origin.lat}"></div><div><label for="lon" class="field">経度</label><input id="lon" class="text-field" type="number" step="any" min="-180" max="180" required value="${state.origin.lon}"></div></div>${errorBox()}<button class="primary" type="submit">ルートをつくる</button></form>${button('back','気分の選択に戻る','text-button')}${state.excluded.length?button('clear-excluded','外した場所の記録をリセット','text-button'):''}`;
+      app.innerHTML = `${progress(3)}<h2>どこから、<br>どのくらい歩こう。</h2><p class="lead">${esc(state.preference)}</p><form id="setup-form"><fieldset style="border:0;padding:0;margin:0"><legend class="field">散歩の時間</legend><div class="duration-options">${[30,45,60].map(n=>`<label class="duration-option"><input type="radio" name="minutes" value="${n}" ${state.minutes===n?'checked':''}><span>${n}分</span></label>`).join('')}</div></fieldset><label class="field">出発地</label>${button('locate','◎ 現在地を使う','secondary')}<p id="geo-status" class="subtle" role="status">${mock?'見本モードでは、出発地を変えても見本の場所は同じです。':'地図をタップして出発地を選ぶか、「現在地を使う」を押してください。'}</p>${mapMarkup()}${errorBox()}<button class="primary" type="submit">ルートをつくる</button></form>${button('back','気分の選択に戻る','text-button')}${state.excluded.length?button('clear-excluded','外した場所の記録をリセット','text-button'):''}`;
       event('#locate','click',locate);event('#back','click',()=>go('choices'));
       event('#clear-excluded','click',()=>{state.excluded=[];storage.set('excluded',[]);go('setup');});
-      event('#setup-form','submit',async e=>{e.preventDefault();state.origin={lat:Number($('#lat').value),lon:Number($('#lon').value)};state.minutes=Number(new FormData(e.target).get('minutes'));if(!validPoint(state.origin))return setError('出発地の座標を確認してください。');await createRoute('setup');});
+      event('#setup-form','submit',async e=>{e.preventDefault();state.minutes=Number(new FormData(e.target).get('minutes'));if(!validPoint(state.origin))return setError('出発地を選んでください。地図をタップするか、「現在地を使う」を押してください。');await createRoute('setup');});
       setupMap().catch(e=>setError(e.message));
     } else if (s === 'loading') {
       app.setAttribute('aria-busy','true');app.innerHTML=`${progress(state.pending==='clarify'?1:3)}<div class="waiting"><div class="loader" aria-hidden="true"></div><p class="waiting-word">「${esc(state.mood)}」</p><h2>${state.pending==='clarify'?'この言葉を、<br>ほどいています。':'この言葉から、<br>近所を探しています。'}</h2><p id="waiting-text" class="lead" role="status">${mock?'見本データを読み込んでいます。':'少しだけ、お待ちください。'}</p><p class="time"><span id="elapsed">0</span>秒経過</p><p class="subtle">${mock?'このモードではAI・場所検索・ルートのAPIを呼びません。':'通常10〜40秒ほど。混雑時は長くかかることがあります。'}</p>${button('cancel','キャンセル','text-button')}</div>`;
@@ -446,9 +446,8 @@ function boot() {
     if(kind==='mock'){mockMap();return;}
     map=newMap(container,{lat:state.origin.lat,lng:state.origin.lon});
     originMarker=new google.maps.Marker({map,position:{lat:state.origin.lat,lng:state.origin.lon},title:'出発地'});overlays.push(originMarker);
-    map.addListener('click',e=>{state.origin={lat:e.latLng.lat(),lon:e.latLng.lng()};$('#lat').value=state.origin.lat.toFixed(6);$('#lon').value=state.origin.lon.toFixed(6);originMarker.setPosition(e.latLng);});
-    const update=()=>{const point={lat:Number($('#lat').value),lon:Number($('#lon').value)};if(validPoint(point)){state.origin=point;originMarker.setPosition({lat:point.lat,lng:point.lon});map.panTo({lat:point.lat,lng:point.lon});}};
-    event('#lat','change',update);event('#lon','change',update);
+    map.addListener('click',e=>{state.origin={lat:e.latLng.lat(),lon:e.latLng.lng()};originMarker.setPosition(e.latLng);const st=$('#geo-status');if(st)st.textContent='地図でタップした場所を出発地にしました。';});
+
   }
   async function resultMap() {
     const screen=state.screen,container=$('#map');const kind=await prepareMap();if(state.screen!==screen||$('#map')!==container)return;
@@ -578,7 +577,7 @@ function boot() {
     const b=$('#locate');b.disabled=true;$('#geo-status').textContent='現在地を確認しています…';
     navigator.geolocation.getCurrentPosition(pos=>{
       if(state.screen!=='setup')return;b.disabled=false;
-      state.origin={lat:pos.coords.latitude,lon:pos.coords.longitude};$('#lat').value=state.origin.lat.toFixed(6);$('#lon').value=state.origin.lon.toFixed(6);
+      state.origin={lat:pos.coords.latitude,lon:pos.coords.longitude};
       $('#geo-status').textContent=`現在地を出発地にしました。${mock?'見本モードでは、見本の場所は変わりません。':''}`;
       if(map&&originMarker){const p={lat:state.origin.lat,lng:state.origin.lon};originMarker.setPosition(p);map.panTo(p);map.setZoom(16);}
     },err=>{if(state.screen!=='setup')return;b.disabled=false;$('#geo-status').textContent=`${geoErrorText(err)} 地図をタップするか、座標で指定できます。`;},{enableHighAccuracy:true,timeout:12000,maximumAge:0});
