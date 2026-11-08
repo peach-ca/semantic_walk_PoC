@@ -3,6 +3,8 @@
 使い方:
     uv run --env-file .env python scripts/build_osm_json.py
     （OSM_FILE 未設定なら data/area_poi.osm を読む）
+    川（waterway=river/stream/canal）は、線を RIVER_STEP_M おきの点に分けて「〇〇川（川沿い）」として加える。
+    川は OSM_RIVER_FILE（未設定なら data/area.osm、なければ OSM_FILE）から読む。
 
 できたファイルは .gitignore 済み。© OpenStreetMap contributors（ODbL）
 """
@@ -18,6 +20,9 @@ import osmnx as ox
 ROOT = Path(__file__).resolve().parent.parent
 SRC = Path(os.environ.get("OSM_FILE", ROOT / "data" / "area_poi.osm"))
 OUT = ROOT / "api" / "data" / "places.json"
+RIVER_SRC = Path(os.environ.get("OSM_RIVER_FILE", ROOT / "data" / "area.osm"))
+RIVER_STEP_M = 200
+RIVER_TAGS = {"waterway": ["river", "stream", "canal"]}
 
 TAGS = {
     "historic": True,
@@ -65,9 +70,42 @@ def main() -> None:
         out.append({"id": pid, "name": name.strip(), "key": key, "value": value,
                     "lat": round(pt.y, 6), "lon": round(pt.x, 6)})
 
+    rivers = river_points(RIVER_SRC if RIVER_SRC.exists() else src)
+    out.extend(r for r in rivers if r["id"] not in seen)
+    print(f"川沿いの点: {len(rivers)} 件")
+
     OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
     print(f"{len(out)} 件 → {OUT.relative_to(ROOT)} ({OUT.stat().st_size / 1e6:.1f} MB)")
+
+
+def river_points(src: Path) -> list[dict]:
+    """名前のある川の線を、RIVER_STEP_M おきの点に分ける（目的地・寄り道の候補にするため）。"""
+    try:
+        gdf = ox.features_from_xml(src, tags=RIVER_TAGS)
+    except Exception as e:  # noqa: BLE001  川が1本もないファイルなど
+        print(f"川を読めませんでした（{e}）")
+        return []
+    gdf = gdf[gdf["name"].notna() & gdf.geometry.geom_type.isin(["LineString", "MultiLineString"])]
+    if gdf.empty:
+        return []
+    utm = gdf.estimate_utm_crs()
+    proj = gdf.to_crs(utm)
+    pts: list[dict] = []
+    for (element, osmid), row in proj.iterrows():
+        line = row.geometry
+        n = max(1, int(line.length // RIVER_STEP_M))
+        for k in range(n + 1):
+            pt = line.interpolate(min(k * RIVER_STEP_M, line.length))
+            pts.append({"id": f"osm:{element}/{osmid}#{k}", "name": f"{row['name']}（川沿い）",
+                        "key": "waterway", "value": row["waterway"], "_x": pt.x, "_y": pt.y})
+    if not pts:
+        return []
+    import geopandas as gpd
+    from shapely.geometry import Point
+    g = gpd.GeoDataFrame(pts, geometry=[Point(p["_x"], p["_y"]) for p in pts], crs=utm).to_crs(4326)
+    return [{"id": r["id"], "name": r["name"], "key": r["key"], "value": r["value"],
+             "lat": round(r.geometry.y, 6), "lon": round(r.geometry.x, 6)} for _, r in g.iterrows()]
 
 
 if __name__ == "__main__":

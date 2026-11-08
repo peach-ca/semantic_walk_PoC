@@ -10,7 +10,7 @@ from .osm_data import haversine
 
 WALK_M_PER_MIN = 70
 DETOUR = 1.3  # 直線距離 → 道のりのおおよその倍率
-STAY_MIN = 5  # 1か所の立ち寄り（ちょっと覗く・ひと息つく程度）
+STAY_MIN = 0  # 「〇分」は歩く時間。立ち寄った場所で過ごす時間は含めない
 MIN_PER_STOP = 12  # 立ち寄りは「時間 ÷ 12分」か所まで（60分なら5か所）。歩く時間を主役にする
 URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 FIELDS = "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline"
