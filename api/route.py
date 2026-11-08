@@ -1,6 +1,8 @@
 """時間内に回れる順番を決めて、Routes API で歩くルートを1回だけ取る部分。"""
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import math
 import os
 
@@ -26,8 +28,22 @@ def max_stops(minutes: int) -> int:
     return max(2, minutes // MIN_PER_STOP)
 
 
+# 直線距離 → 歩く時間 の補正倍率。実際の道（Routes API）で測った結果に合わせて、1回のルート作成の間だけ変える。
+# リクエストごとに別々の値を持てるよう ContextVar にしている（同時に来たリクエストが互いに影響しない）
+_scale: contextvars.ContextVar[float] = contextvars.ContextVar("route_scale", default=1.0)
+
+
+@contextlib.contextmanager
+def scaled(factor: float):
+    token = _scale.set(factor)
+    try:
+        yield
+    finally:
+        _scale.reset(token)
+
+
 def _walk_min(a: tuple[float, float], b: tuple[float, float]) -> float:
-    return haversine(a[0], a[1], b[0], b[1]) * DETOUR / WALK_M_PER_MIN
+    return haversine(a[0], a[1], b[0], b[1]) * DETOUR / WALK_M_PER_MIN * _scale.get()
 
 
 def loop_minutes(start: tuple[float, float], route: list[dict]) -> float:
@@ -115,6 +131,9 @@ def _ll(lat: float, lon: float) -> dict:
     return {"location": {"latLng": {"latitude": lat, "longitude": lon}}}
 
 
+CALIBRATE_GAP = 0.1  # 実際の時間が指定から1割以上ずれたら、倍率を直して組み直す
+
+
 def compute(start: tuple[float, float], ordered: list[dict], minutes: int | None = None) -> dict:
     """出発地 → 場所たち → 出発地 の歩くルート。polyline と所要時間（分、滞在込み）を返す。
 
@@ -143,6 +162,7 @@ def compute(start: tuple[float, float], ordered: list[dict], minutes: int | None
     best = dict(best)
     best.pop("_leg_pts", None)
     best["overlap"] = round(best["overlap"], 2)
+    best["_est_walk"] = _walk_with_vias(start, ordered, ext)
     return best
 
 
@@ -395,7 +415,7 @@ def estimate(start: tuple[float, float], ordered: list[dict], minutes: int | Non
     dist = sum(haversine(a[0], a[1], b[0], b[1]) * DETOUR for a, b in zip(pts, pts[1:]))
     stay = STAY_MIN * len(ordered)
     return {"polyline": encode_polyline(pts), "distance_m": round(dist), "total_minutes": walk + stay,
-            "walk_minutes": walk, "stay_minutes": stay, "legs": legs, "overlap": 0.0}
+            "walk_minutes": walk, "stay_minutes": stay, "legs": legs, "overlap": 0.0, "_est_walk": None}
 
 
 def encode_polyline(points: list[tuple[float, float]]) -> str:

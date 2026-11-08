@@ -193,3 +193,11 @@ def test_clustered_places_are_stretched_to_fill_the_time():
     assert est["total_minutes"] >= 60 * 0.85
     assert est["total_minutes"] <= 60 + 5
     assert len(est["legs"]) == len(ordered) + 1
+
+
+def test_scaled_changes_estimates_only_inside_the_block():
+    a, b = (35.0262, 135.7808), (35.0300, 135.7808)
+    base = route._walk_min(a, b)
+    with route.scaled(1.5):
+        assert abs(route._walk_min(a, b) - base * 1.5) < 1e-9
+    assert abs(route._walk_min(a, b) - base) < 1e-9

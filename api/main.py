@@ -172,16 +172,32 @@ def make_route(body: RouteReq, req: Request):
     if not kept:
         return err(404, "いま開いていて行ける場所が見つかりませんでした。時間や気分を変えてみてください")
 
-    # 4) Routes API（1回）
+    # 4) Routes API で実際の道を取る
     ordered = kept
     try:
         rt = route.compute(start, ordered, body.minutes)
     except Exception as e:  # noqa: BLE001
         log.warning("routes failed: %s", e)
         return err(502, "歩くルートを作れませんでした。もう一度お願いします")
+
+    # 5) 実際の時間が指定から1割以上ずれていたら、ずれた割合で倍率を直して組み直し、もう一度だけ取る
+    #    （順番は直線距離の概算で組むため、川や線路の回り道が多い場所ではずれる）
+    scale = 1.0
+    est = rt.get("_est_walk")
+    gap = abs(rt["total_minutes"] - body.minutes) / body.minutes
+    if est and gap > route.CALIBRATE_GAP:
+        scale = min(max(rt["walk_minutes"] / est, 0.6), 1.8)
+        with route.scaled(scale):
+            kept2 = route.order_and_fit(start, list(verified.values()), body.minutes, set(must))
+            try:
+                rt2 = route.compute(start, kept2, body.minutes)
+                if abs(rt2["total_minutes"] - body.minutes) < abs(rt["total_minutes"] - body.minutes):
+                    rt, ordered = rt2, kept2
+            except Exception as e:  # noqa: BLE001
+                log.info("calibrated route failed, keep first: %s", e)
     t3 = time.time()
-    log.info("route: select %.1fs / places %.1fs (%d calls) / routes %.1fs, picked %d → kept %d, %d min, overlap %s",
-             t1 - t0, t2 - t1, calls, t3 - t2, len(picked), len(ordered), rt["total_minutes"], rt.get("overlap"))
+    log.info("route: select %.1fs / places %.1fs (%d calls) / routes %.1fs, picked %d → kept %d, %d min, overlap %s, scale %.2f",
+             t1 - t0, t2 - t1, calls, t3 - t2, len(picked), len(ordered), rt["total_minutes"], rt.get("overlap"), scale)
 
     places = []
     for p in ordered:
