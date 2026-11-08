@@ -3,4 +3,3 @@ uvicorn[standard]>=0.30
 requests>=2.32
 google-genai>=1.0
 pydantic>=2.7
-google-cloud-firestore>=2.16
