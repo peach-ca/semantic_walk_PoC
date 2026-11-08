@@ -36,8 +36,9 @@
 }
 
 /* 7. ダークモード：端末の設定が暗いときに自動で切り替える */
+/* 端末の設定がダークのとき（ホームで「ふつう」を選んだ場合を除く） */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --paper: #121a16;
     --surface: #18221d;
     --ink: #e4e9dc;
@@ -64,6 +65,36 @@
     --float: 0 4px 14px rgba(0, 0, 0, .45);
   }
 }
+/* ホームで「ナイト」を選んだとき */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper: #121a16;
+  --surface: #18221d;
+  --ink: #e4e9dc;
+  --muted: #9ba696;
+  --line: #2d3933;
+  --green: #b5cf9f;
+  --on-green: #132017;
+  --lime: #2b3a2c;
+  --hover: #22302a;
+  --orange: #e6a06a;
+  --field: #0f1612;
+  --field-line: #3a473f;
+  --placeholder: #6f7a6c;
+  --error: #f2a596;
+  --error-bg: #3b211c;
+  --caution: #e7c47f;
+  --caution-bg: #302816;
+  --note: #1f2a22;
+  --map-bg: #1d2822;
+  --road: #2a3730;
+  --park: #25352a;
+  --street-art: #212c26;
+  --shadow: none;
+  --float: 0 4px 14px rgba(0, 0, 0, .45);
+}
+:root[data-theme="light"] { color-scheme: light; }
+
 
 /* ---- 基本 ---- */
 * { box-sizing: border-box; }
@@ -276,6 +307,44 @@ textarea.text-field { min-height: 120px; resize: vertical; }
 .legend-line.latest { height: 5px; background: #294d3c; opacity: 1; }
 .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #fffef9; border: 2px solid #294d3c; }
 .track-visit { fill: var(--surface); stroke: var(--green); stroke-width: 2; }
+
+/* ---- アプリ内の確認（ブラウザの確認ダイアログの代わり） ---- */
+.ask-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: end center; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); background: rgba(10, 20, 15, .45); }
+.ask { width: min(100%, 440px); background: var(--surface); color: var(--ink); border-radius: 18px; padding: 22px 20px 18px; box-shadow: var(--float); }
+.ask p { white-space: pre-line; font-size: 15px; line-height: 1.8; }
+.ask-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+.ask-actions .primary { margin: 0; }
+.primary.danger { background: var(--error); color: #fff; }
+@media (min-width: 761px) { .ask-backdrop { place-items: center; } }
+
+/* ---- 歩いた記録：1件ずつ消す ---- */
+.log-delete { margin-left: auto; background: transparent; border: 0; color: var(--muted); font-size: 11px; min-height: 36px; padding: 4px 2px; text-decoration: underline; text-underline-offset: 3px; }
+.log-delete:hover { color: var(--error); }
+
+/* ---- 気分を選ぶ：4つ目の選択肢として自分の言葉を書く ---- */
+.choice-free { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 17px; cursor: text; }
+.free-input { flex: 1; min-width: 0; min-height: 44px; border: 0; background: transparent; color: var(--ink); font-size: 16px; padding: 0; outline: none; }
+.free-input::placeholder { color: var(--placeholder); }
+.choice-free:focus-within { border-color: var(--green); }
+.free-go { flex: none; width: 40px; height: 40px; border: 0; border-radius: 10px; background: var(--green); color: var(--on-green); font-size: 18px; }
+.free-guide { font-size: 12px; color: var(--placeholder); margin: 2px 0 0 4px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ---- 歩行中：次の場所のそばに来たとき ---- */
+.near-note { margin-top: 14px; padding: 10px 12px; border-radius: 10px; background: var(--lime); color: var(--ink); font-size: 14px; font-weight: 600; }
+#arrive[data-near="true"] { box-shadow: 0 0 0 4px color-mix(in srgb, var(--orange) 45%, transparent); }
+
+/* ---- ホーム：表示の切り替え ---- */
+.prefs { display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); }
+.pref { border: 0; background: transparent; color: var(--muted); border-radius: 999px; min-height: 34px; padding: 4px 14px; font-size: 12px; font-weight: 600; }
+.pref[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+
+/* ---- 歩行中：歩いた道の記録の状態と切り替え ---- */
+.track-row { display: flex; align-items: center; margin-top: 14px; }
+.track-state { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.track-state::before { content: ""; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+.track-state[data-state="on"]::before { background: #d64545; animation: rec 1.6s ease-in-out infinite; }
+@keyframes rec { 50% { opacity: .3; } }
 
 /* ---- 画面幅 ---- */
 @media (max-width: 950px) {

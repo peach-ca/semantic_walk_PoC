@@ -83,6 +83,23 @@ export function splitPath(pts, cum, along) {
   const m = {lat: a.lat + (b.lat - a.lat) * t, lon: a.lon + (b.lon - a.lon) * t};
   return [[...pts.slice(0, i), m], [m, ...pts.slice(i)]];
 }
+// ---- 歩いた道の途切れ ----
+// 画面を消していた・記録を止めていた間は位置が取れない。前の位置から2分半以上あいたら、そこで線を切る
+// （立ち止まっている間の記録は最長60秒おきなので、休憩しているだけでは切れない）。
+export const TRACK_GAP_MS = 150000;
+export function splitTrack(points, gapMs = TRACK_GAP_MS) {
+  const segments = [];
+  for (const p of points || []) {
+    const seg = segments[segments.length - 1], last = seg?.[seg.length - 1];
+    if (!seg || !Number.isFinite(p.timestamp) || !Number.isFinite(last.timestamp) || p.timestamp - last.timestamp > gapMs) segments.push([p]);
+    else seg.push(p);
+  }
+  return segments;
+}
+// 途切れた区間は距離に足さない
+export function trackLength(points, gapMs = TRACK_GAP_MS) {
+  return splitTrack(points, gapMs).reduce((n, seg) => n + seg.slice(1).reduce((m, p, i) => m + distanceMeters(seg[i], p), 0), 0);
+}
 export function routeGeometry(route, origin) {
   const pts = decodePolyline(route?.polyline);
   if (pts.length < 2) return null;
@@ -136,7 +153,7 @@ function boot() {
     // recordTrack：「歩いた道と記録を保存する」は最初からオン。保存したくない人が外す
     recordTrack:true, trackNotice:'', progressAlong:0, trail:[], showPast: storage.get('showPast', false) === true, restartPosition:null, originNote:'', saveNotice:'', error:'', geoMessage:'', blocked:'', historyBack:'mood' };
   let controller = null, timer = null, watch = null, map = null, overlays = [], userMarker = null, accuracyCircle = null, originMarker = null,
-    routeBounds = null, passedLine = null, remainLine = null, trailLine = null, pastLines = [], geoCache = {route:null, origin:null, value:null}, mapPromise = null, configChecked = false, requestToken = 0, mapsAuthError = false;
+    routeBounds = null, passedLine = null, remainLine = null, trailLines = [], pastLines = [], geoCache = {route:null, origin:null, value:null}, mapPromise = null, configChecked = false, requestToken = 0, mapsAuthError = false;
 
   const ACTIVE_TTL_MS = 12 * 60 * 60 * 1000; // loadActive() より前に置く（後ろだと起動時に参照できず、保存が消える）
   const pendingWalk = loadActive();
@@ -161,7 +178,7 @@ function boot() {
 
   function setError(text) { state.error = text; const el = $('#error'); if (el) { el.textContent = text; el.hidden = !text; } }
   function stopWatch() { if (watch !== null) navigator.geolocation?.clearWatch(watch); watch = null; }
-  function clearMap() { for (const o of overlays) o.setMap(null); overlays=[]; userMarker=null; accuracyCircle=null; originMarker=null; routeBounds=null; passedLine=null; remainLine=null; trailLine=null; pastLines=[]; if(map) google.maps.event.clearInstanceListeners(map); map=null; }
+  function clearMap() { for (const o of overlays) o.setMap(null); overlays=[]; userMarker=null; accuracyCircle=null; originMarker=null; routeBounds=null; passedLine=null; remainLine=null; trailLines=[]; pastLines=[]; if(map) google.maps.event.clearInstanceListeners(map); map=null; }
   function go(screen) { state.screen = screen; state.error=''; render(); app.focus({preventScroll:true}); }
   function mapMarkup(extraClass='') { return `<div id="map" class="map ${extraClass}" aria-label="地図"></div><p id="map-label" class="map-label" hidden></p>`; }
   function setMapLabel(text) { const el=$('#map-label'); if(el){el.textContent=text;el.hidden=!text;} }
@@ -219,11 +236,32 @@ function boot() {
       if (keepRecord(w) && !saveWalk(w)) state.saveNotice = '散歩の記録を保存できませんでした。ブラウザの容量や保存設定を確認してください。';
     }
   }
-  function requestWalkEnd() {
+  // ブラウザの確認ダイアログ（confirm）の代わりに、アプリの画面の中で確認する
+  function ask(message, {ok='OK', cancel='キャンセル', danger=false}={}) {
+    return new Promise(resolve => {
+      const back=document.createElement('div');back.className='ask-backdrop';
+      back.innerHTML=`<div class="ask" role="alertdialog" aria-modal="true" aria-labelledby="ask-text"><p id="ask-text">${esc(message)}</p><div class="ask-actions"><button type="button" class="secondary" data-ask="no">${esc(cancel)}</button><button type="button" class="primary${danger?' danger':''}" data-ask="yes">${esc(ok)}</button></div></div>`;
+      const before=document.activeElement;
+      const done=v=>{document.removeEventListener('keydown',onKey);back.remove();before?.focus?.();resolve(v);};
+      const onKey=e=>{if(e.key==='Escape')done(false);};
+      back.addEventListener('click',e=>{if(e.target===back)done(false);const b=e.target.closest('[data-ask]');if(b)done(b.dataset.ask==='yes');});
+      document.addEventListener('keydown',onKey);document.body.append(back);back.querySelector('[data-ask="yes"]').focus();
+    });
+  }
+  // ---- 画面の明るさ（ホームで選ぶ）----
+  function currentTheme() {
+    const t=document.documentElement?.dataset?.theme; // テスト用の簡易DOMでは documentElement がないことがある
+    return t==='dark'||t==='light'?t:(window.matchMedia?.('(prefers-color-scheme: dark)').matches?'dark':'light');
+  }
+  function setTheme(t) {
+    if(document.documentElement?.dataset)document.documentElement.dataset.theme=t;storage.set('theme',t);
+    document.querySelectorAll?.('meta[name="theme-color"]')?.forEach(m=>m.setAttribute('content',t==='dark'?'#121a16':'#f5f4ec'));
+  }
+  async function requestWalkEnd() {
     if (!state.walk) return;
     const draft = state.screen === 'reflect' && $('#comment')?.value.trim();
-    const message = (keepRecord(state.walk) ? 'ここまでの記録を残して終了しますか？' : '散歩を終了しますか？\n保存しない設定なので、この散歩の記録は残りません。') + (draft ? '\n入力途中のメモは保存されません。残す場合はキャンセルして先に記録してください。' : '');
-    if (!confirm(message)) return;
+    const message = (keepRecord(state.walk) ? 'ここまでの記録を残して終了しますか？' : '散歩を終了しますか？\nこの散歩の記録は残りません。') + (draft ? '\n書きかけのメモは保存されません。' : '');
+    if (!await ask(message,{ok:'終了する',cancel:'歩き続ける'}) || !state.walk) return;
     state.restartPosition = state.position && !state.position.simulated && validPoint(state.position) ? {...state.position} : null;
     stopWatch(); finishWalk('stopped'); go('restart-choice');
   }
@@ -276,15 +314,16 @@ function boot() {
       app.innerHTML = `${progress(0)}<h2>歩く前に、<br>小さな約束を。</h2><ul class="notice-list"><li><b>画面を見るときは、立ち止まる。</b><p>歩いている間は、街の景色を楽しんでください。</p></li><li><b>入れる場所か、その場で確かめる。</b><p>営業時間や立入制限は変わります。看板・現地の案内を優先してください。</p></li><li><b>気が進まなければ、引き返す。</b><p>暗い道や不安な場所を避け、無理のない散歩を。</p></li></ul>${button('accept','わかりました、はじめる')}<p class="subtle">歩いている間の現在地はブラウザの中で処理し、自分たちのサーバーには送りません。出発地のみ、ルート作成時にサーバーへ送ります。「歩いた道と記録を保存する」を選んだ散歩だけ、歩いた道・立ち寄った場所・メモをこのブラウザに保存します。</p>`;
       event('#accept','click',()=>{storage.set('notice',true);go('mood');});
     } else if (s === 'mood') {
-      const walks = loadWalks();
-      app.innerHTML = `${progress(1)}<h2>今日は、<br>どんな気分ですか。</h2><p class="lead">うまく言葉にならなくても、大丈夫。<br>いま思い浮かんだ、一言から。</p>${state.originNote?`<p class="subtle" role="status">${esc(state.originNote)}</p>`:''}<form id="mood-form"><label for="mood" class="field">いまの気分</label><textarea id="mood" class="text-field" maxlength="200" required placeholder="「ワクワクを感じたい」「寂しい」「エモい」など、あなたの気持ちをそのまま入力してください。">${esc(state.mood)}</textarea>${errorBox()}<button class="primary" type="submit">気分をほどく</button></form><div class="home-links">${button('trackmap','歩いた道の地図','secondary')}${walks.length||loadTracks().length?button('history',`歩いた記録（${walks.length}回）`,'secondary'):''}</div>`;
+      const walks = loadWalks(), theme=currentTheme();
+      app.innerHTML = `<div class="prefs" role="group" aria-label="画面の明るさ"><button type="button" class="pref" data-theme-choice="light" aria-pressed="${theme==='light'}">☀ ふつう</button><button type="button" class="pref" data-theme-choice="dark" aria-pressed="${theme==='dark'}">☾ ナイト</button></div>${progress(1)}<h2>今日は、<br>どんな気分ですか。</h2><p class="lead">うまく言葉にならなくても、大丈夫。<br>いま思い浮かんだ、一言から。</p>${state.originNote?`<p class="subtle" role="status">${esc(state.originNote)}</p>`:''}<form id="mood-form"><label for="mood" class="field">いまの気分</label><textarea id="mood" class="text-field" maxlength="200" required placeholder="「ワクワクを感じたい」「寂しい」「エモい」など、あなたの気持ちをそのまま入力してください。">${esc(state.mood)}</textarea>${errorBox()}<button class="primary" type="submit">気分をほどく</button></form><div class="home-links">${button('trackmap','歩いた道の地図','secondary')}${walks.length||loadTracks().length?button('history',`歩いた記録（${walks.length}回）`,'secondary'):''}</div>`;
       event('#mood-form','submit',async e=>{e.preventDefault();state.mood=$('#mood').value.trim();if(!state.mood)return setError('いまの気分を一言入力してください。');await request('clarify',{mood:state.mood},'choices','mood');});
       event('#history','click',()=>{state.historyBack='mood';go('history');});
       event('#trackmap','click',()=>{state.trackmapBack='mood';go('trackmap');});
+      app.querySelectorAll('[data-theme-choice]').forEach(b=>b.addEventListener('click',()=>{setTheme(b.dataset.themeChoice);app.querySelectorAll('[data-theme-choice]').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));}));
     } else if (s === 'choices') {
-      app.innerHTML = `${progress(2)}<span class="pill">${esc(state.mood)}</span><h2>${esc(state.clarify.question)}</h2><p class="lead">いまの自分に近いものを、ひとつ。</p><div>${state.clarify.options.map((o,i)=>`<button type="button" class="choice" data-option="${i}">${esc(o.label)}</button>`).join('')}</div><div class="divider">自分の言葉でも</div><form id="preference-form"><label class="field" for="preference">もう少し伝える</label><input id="preference" class="text-field" maxlength="200" placeholder="どんなふうに過ごしたい？" value="${esc(state.preference)}"><label class="field" for="crowd">人の多さは？</label><select id="crowd" class="text-field"><option value="neutral">どちらでも</option><option value="avoid">混雑を避けたい</option><option value="ok">にぎやかでいい</option></select>${errorBox()}<button type="submit" class="primary">この気分で歩く</button></form><div class="actions">${button('back','戻る','text-button')}${button('surprise','おまかせ','text-button')}</div>`;
+      app.innerHTML = `${progress(2)}<span class="pill">${esc(state.mood)}</span><h2>${esc(state.clarify.question)}</h2><p class="lead">いまの自分に近いものを、ひとつ。</p><div>${state.clarify.options.map((o,i)=>`<button type="button" class="choice" data-option="${i}">${esc(o.label)}</button>`).join('')}<form id="preference-form" class="choice choice-free"><label class="visually-hidden" for="preference">自分の言葉で書く</label><input id="preference" class="free-input" maxlength="200" placeholder="自分の言葉で書く" value="${esc(state.clarify.options.some(o=>o.label===state.preference)?'':state.preference)}"><button type="submit" class="free-go" aria-label="この言葉で歩く">↗</button></form><p class="free-guide">ぴったりのものがなければ。例：静かな川沿いで、ぼんやりしたい</p></div>${errorBox()}<div class="actions">${button('back','戻る','text-button')}${button('surprise','おまかせ','text-button')}</div>`;
       app.querySelectorAll('[data-option]').forEach(b=>b.addEventListener('click',()=>{const o=state.clarify.options[Number(b.dataset.option)];state.preference=o.label;state.crowd=o.crowd;go('setup');}));
-      event('#preference-form','submit',e=>{e.preventDefault();state.preference=$('#preference').value.trim();if(!state.preference)return setError('気分を入力するか、選択肢・おまかせを選んでください。');state.crowd=$('#crowd').value;go('setup');});
+      event('#preference-form','submit',e=>{e.preventDefault();state.preference=$('#preference').value.trim();if(!state.preference)return setError('ひとこと書くか、上の選択肢・おまかせを選んでください。');state.crowd='neutral';go('setup');});
       event('#surprise','click',()=>{state.preference=state.mood;state.crowd='neutral';go('setup');});event('#back','click',()=>go('mood'));
     } else if (s === 'setup') {
       app.innerHTML = `${progress(3)}<h2>どこから、<br>どのくらい歩こう。</h2><p class="lead">${esc(state.preference)}</p><form id="setup-form"><fieldset style="border:0;padding:0;margin:0"><legend class="field">散歩の時間</legend><div class="duration-options">${[30,45,60].map(n=>`<label class="duration-option"><input type="radio" name="minutes" value="${n}" ${state.minutes===n?'checked':''}><span>${n}分</span></label>`).join('')}</div></fieldset><label class="field">出発地</label>${button('locate','◎ 現在地を使う','secondary')}<p id="geo-status" class="subtle" role="status">${mock?'':'「現在地を使う」を押すと、今いる場所から歩けます。'}</p>${mapMarkup()}${errorBox()}<button class="primary" type="submit">ルートをつくる</button></form>${button('back','気分の選択に戻る','text-button')}${state.excluded.length?button('clear-excluded','外した場所の記録をリセット','text-button'):''}`;
@@ -299,22 +338,21 @@ function boot() {
     } else if (s === 'route') {
       // 歩く時間だけの目安。下の一覧に出す区間ごとの「徒歩 約○分」の合計と同じ数字にする
       const walkMinutes=state.route.places.reduce((sum,p,i)=>sum+routeLeg(i).minutes,0);
-      app.innerHTML=`<div class="route-head"><h2 class="route-title">「${esc(state.mood)}」を、歩く。</h2><p class="route-meta"><span>${state.route.places.length}か所</span><span>徒歩 約<strong>${esc(walkMinutes)}</strong>分</span><span>滞在を除く</span></p></div>${mapMarkup('route-map')}${attribution()}${state.route.interpretation?`<p class="route-interpretation">${esc(state.route.interpretation)}</p>`:''}<div id="route-details" ${mock?'':'hidden'}><ol class="trail"><li class="trail-start"><span class="trail-dot" aria-hidden="true"></span><b>出発地</b></li>${state.route.places.map((p,i)=>{const leg=routeLeg(i);return `<li class="trail-leg">徒歩 約${leg.minutes}分（${leg.road?'道のり ':'約'}${formatDistance(leg.meters)}）</li><li class="trail-stop"><span class="trail-dot" aria-hidden="true">${i+1}</span><div class="trail-body"><span class="place-kind">${esc(p.kind)}</span><h3>${esc(p.name)}</h3><p>${esc(p.hint)}</p>${p.warning?`<p class="warning">${esc(p.warning)}</p>`:''}${link(p.maps_uri,'Google Mapsで見る')}</div><button type="button" class="remove" data-remove="${i}" aria-label="${esc(p.name)}を外す">外す</button></li>`;}).join('')}</ol><div class="sources">${(state.route.sources||[]).map(x=>link(x.uri,x.title)).join(' ')}</div></div>${errorBox()}<label class="check"><input id="save-track" type="checkbox" ${state.recordTrack?'checked':''}><span>歩いた道と記録をこのブラウザに保存する</span></label><p class="subtle">歩いた道と立ち寄った場所・メモを保存し、あとで地図で見返せます。外すと何も残りません。</p><button id="start" type="button" class="primary go" ${mock?'':'disabled'}>歩きはじめる</button><p class="subtle">時間は、滞在を除いた歩く時間の目安です。</p>${button('back','時間・出発地を変更する','text-button')}`;
+      app.innerHTML=`<div class="route-head"><h2 class="route-title">「${esc(state.mood)}」を、歩く。</h2><p class="route-meta"><span>${state.route.places.length}か所</span><span>徒歩 約<strong>${esc(walkMinutes)}</strong>分</span><span>滞在を除く</span></p></div>${mapMarkup('route-map')}${attribution()}${state.route.interpretation?`<p class="route-interpretation">${esc(state.route.interpretation)}</p>`:''}<div id="route-details" ${mock?'':'hidden'}><ol class="trail"><li class="trail-start"><span class="trail-dot" aria-hidden="true"></span><b>出発地</b></li>${state.route.places.map((p,i)=>{const leg=routeLeg(i);return `<li class="trail-leg">徒歩 約${leg.minutes}分（${leg.road?'道のり ':'約'}${formatDistance(leg.meters)}）</li><li class="trail-stop"><span class="trail-dot" aria-hidden="true">${i+1}</span><div class="trail-body"><span class="place-kind">${esc(p.kind)}</span><h3>${esc(p.name)}</h3><p>${esc(p.hint)}</p>${p.warning?`<p class="warning">${esc(p.warning)}</p>`:''}${link(p.maps_uri,'Google Mapsで見る')}</div><button type="button" class="remove" data-remove="${i}" aria-label="${esc(p.name)}を外す">外す</button></li>`;}).join('')}</ol><div class="sources">${(state.route.sources||[]).map(x=>link(x.uri,x.title)).join(' ')}</div></div>${errorBox()}<label class="check"><input id="save-track" type="checkbox" ${state.recordTrack?'checked':''}><span>歩いた道と記録をこのブラウザに保存する</span></label><p class="subtle">歩いた道と立ち寄った場所・メモを保存し、あとで地図で見返せます。外すと何も残りません。</p><button id="start" type="button" class="primary go" ${mock?'':'disabled'}>歩きはじめる</button>${button('back','時間・出発地を変更する','text-button')}`;
       event('#start','click',()=>{state.recordTrack=$('#save-track').checked;state.index=0;state.position=null;state.geoMessage='';state.follow=true;state.progressAlong=0;state.trail=[];startWalkRecord();go('walk');saveActive();startWatch();});event('#back','click',()=>go('setup'));
       app.querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',async()=>{const id=state.route.places[Number(b.dataset.remove)].id;state.excluded=[...new Set([...state.excluded,id])].slice(-200);storage.set('excluded',state.excluded);await createRoute('route');}));
       resultMap().then(()=>{if(state.screen==='route'&&!mapsAuthError){$('#route-details').hidden=false;$('#start').disabled=false;}}).catch(e=>setError(e.message));
     } else if (s === 'walk') {
       const p=state.route.places[state.index];
-      app.innerHTML=`<div class="walk-screen"><div class="walk-map-wrap"><div id="map" class="map walk-map" aria-label="地図"></div><div class="map-notes">${attribution()}<p id="map-label" class="map-label" hidden></p></div><div id="map-tools" class="map-tools" hidden>${button('recenter','◎ 現在地に戻る','map-button')}${button('overview','ルート全体','map-button')}<button id="past-tracks" class="map-button" type="button" aria-pressed="${state.showPast}" hidden>過去の道</button></div></div><section class="sheet" aria-label="次の場所"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-step">${state.index+1} / ${state.route.places.length} か所目</p><p id="walk-distance" class="walk-distance"></p><p id="walk-direction" class="walk-direction"></p><div id="walk-details" class="next-place" ${mock?'':'hidden'}><h3>${esc(p.name)}</h3><p>${esc(p.hint)}</p>${p.warning?`<p class="warning">${esc(p.warning)}</p>`:''}</div><p id="geo-status" class="geo-status" role="status"></p><p id="track-status" class="subtle" role="status"></p>${button('stop-track','歩いた道の保存を停止','text-button')}${errorBox()}<div class="sheet-action">${button('arrive','着いた','primary')}</div>${mock?`<div class="mock-tools"><p>見本モードの操作確認</p>${button('simulate','この場所への到着を再現','secondary')}</div>`:''}<div class="sheet-links">${button('stop','散歩を切り上げる','text-button')}</div></section></div>`;
+      app.innerHTML=`<div class="walk-screen"><div class="walk-map-wrap"><div id="map" class="map walk-map" aria-label="地図"></div><div class="map-notes">${attribution()}<p id="map-label" class="map-label" hidden></p></div><div id="map-tools" class="map-tools" hidden>${button('recenter','◎ 現在地に戻る','map-button')}${button('overview','ルート全体','map-button')}<button id="past-tracks" class="map-button" type="button" aria-pressed="${state.showPast}" hidden>過去の道</button></div></div><section class="sheet" aria-label="次の場所"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-step">${state.index+1} / ${state.route.places.length} か所目</p><p id="walk-distance" class="walk-distance"></p><p id="walk-direction" class="walk-direction"></p><div id="walk-details" class="next-place" ${mock?'':'hidden'}><h3>${esc(p.name)}</h3><p>${esc(p.hint)}</p>${p.warning?`<p class="warning">${esc(p.warning)}</p>`:''}</div><p id="geo-status" class="geo-status" role="status"></p><div id="track-row" class="track-row" hidden><span id="track-status" class="track-state" role="status"></span></div>${errorBox()}<p id="near-note" class="near-note" role="status" hidden></p><div class="sheet-action">${button('arrive','着いた','primary')}</div><div class="sheet-links">${button('stop','散歩を切り上げる','text-button')}</div></section></div>`;
       resultMap().then(()=>{if(state.screen==='walk'&&!mapsAuthError)$('#walk-details').hidden=false;}).catch(e=>setError(e.message));
-      updateWalk();event('#arrive','click',arrive);event('#simulate','click',()=>{const pos={...p,accuracy:10,timestamp:Date.now(),simulated:true};receivePosition(pos);});event('#stop','click',requestWalkEnd);
-      event('#stop-track','click',()=>tracker.finish('stopped'));
-      event('#recenter','click',()=>{state.follow=true;if(state.position){map?.panTo({lat:state.position.lat,lng:state.position.lon});map?.setZoom(17);}else startWatch();});
+      updateWalk();event('#arrive','click',arrive);event('#stop','click',requestWalkEnd);
+      event('#recenter','click',()=>{state.follow=true;if(state.position&&map){map.setCenter({lat:state.position.lat,lng:state.position.lon});map.setZoom(18);}else{state.zoomToMe=true;startWatch();}});
       event('#overview','click',()=>{state.follow=false;if(map&&routeBounds)map.fitBounds(routeBounds,35);});
       event('#past-tracks','click',e=>{state.showPast=!state.showPast;storage.set('showPast',state.showPast);e.currentTarget.setAttribute('aria-pressed',String(state.showPast));drawPastTracks();});
     } else if (s === 'reflect') {
       const p=state.route.places[state.index], last=state.index+1>=state.route.places.length;
-      app.innerHTML=`${progress(4)}<p class="sheet-step">${state.index+1} / ${state.route.places.length} か所目　${esc(p.name)}</p><h2 class="question">求めていた<br>「${esc(state.mood)}」は、<br>感じられた？</h2><form id="reflect-form">${keepRecord(state.walk)?`<label for="comment" class="field">ひとことメモ</label><textarea id="comment" class="notebook" maxlength="${MAX_COMMENT}" placeholder="書かなくても大丈夫。たとえば、思ったより静かだった。"></textarea><p class="subtle">立ち寄った場所とメモは「歩いた記録」としてこのブラウザに保存されます。</p>`:''}<button class="primary${last?'':' go'}" type="submit">${keepRecord(state.walk)?(last?'記録して散歩を終える':'記録して次へ歩く'):(last?'散歩を終える':'次へ歩く')}</button></form>${button('not-yet','まだ着いていない','text-button')}`;
+      app.innerHTML=`${progress(4)}<p class="sheet-step">${state.index+1} / ${state.route.places.length} か所目　${esc(p.name)}</p><h2 class="question">求めていた<br>「${esc(state.mood)}」は、<br>感じられた？</h2><form id="reflect-form">${keepRecord(state.walk)?`<label for="comment" class="field">ひとことメモ</label><textarea id="comment" class="notebook" maxlength="${MAX_COMMENT}" placeholder="書かなくても大丈夫。たとえば、思ったより静かだった。"></textarea><p class="subtle">立ち寄った場所とメモは「歩いた記録」としてこのブラウザに保存されます。</p>`:''}<button class="primary${last?'':' go'}" type="submit">${keepRecord(state.walk)?(last?'記録して散歩を終える':'記録して次へ歩く'):(last?'散歩を終える':'次へ歩く')}</button></form>${button('not-yet','← 戻る','text-button')}`;
       event('#reflect-form','submit',e=>{e.preventDefault();recordVisit(p,$('#comment')?.value.trim()??'');nextPlace();});
       event('#not-yet','click',()=>{state.follow=true;go('walk');saveActive();startWatch();});
     } else if (s === 'resume') {
@@ -342,18 +380,26 @@ function boot() {
       event('#again','click',()=>resetNewWalk());
       event('#history','click',()=>{state.historyBack='done';go('history');});
       event('#trackmap','click',()=>{state.trackmapBack='done';go('trackmap');});
-      event('#erase','click',()=>{if(!confirm('歩いた記録・歩いた道の履歴・外した場所の記録を消します。元に戻せません。よろしいですか？'))return;storage.remove('walks');storage.remove('ratings');tracker.clearAll();storage.set('excluded',[]);state.excluded=[];$('#erase-status').textContent=tracker.status().error||'歩いた記録・歩いた道の履歴・外した場所の記録を消しました。';});
+      event('#erase','click',async()=>{if(!await ask('歩いた記録・歩いた道の履歴・外した場所の記録を消します。元に戻せません。',{ok:'消す',danger:true}))return;storage.remove('walks');storage.remove('ratings');tracker.clearAll();storage.set('excluded',[]);state.excluded=[];$('#erase-status').textContent=tracker.status().error||'歩いた記録・歩いた道の履歴・外した場所の記録を消しました。';});
     } else if (s === 'history') {
-      const walks=loadWalks().reverse(), count=walks.reduce((a,w)=>a+w.places.length,0), days=[];
+      const walks=loadWalks().reverse(), count=walks.reduce((a,w)=>a+w.places.length,0), days=[], allTracks=loadTracks();
+      // その散歩で保存した道の距離（途中で再開した分も合わせる）
+      const walkedMeters=w=>allTracks.filter(t=>t.id===w.id||t.id.startsWith(`${w.id}~`)).reduce((n,t)=>n+trackLength(t.points),0);
       for(const w of walks){const day=dayText(w.started_at),g=days[days.length-1];if(g&&g.day===day)g.walks.push(w);else days.push({day,walks:[w]});}
-      app.innerHTML=`<h2 class="diary-title">歩いた記録</h2><p class="lead">${walks.length?`${walks.length}回の散歩で、${count}か所に立ち寄りました。このブラウザにだけ保存されています。`:'まだ記録はありません。散歩で場所に着くと、ここに残ります。'}</p>${days.map(g=>`<section class="diary-day"><h3 class="diary-date">${esc(g.day)}</h3><ol class="walk-log">${g.walks.map(w=>`<li><p class="walk-log-head"><time datetime="${esc(w.started_at)}">${esc(timeText(w.started_at))}</time>${w.mock?'<span class="badge">見本</span>':''}</p>${w.status==='stopped'?'<p class="subtle">途中で終了</p>':''}${w.elapsed_seconds!==null?`<p class="subtle">実際の散歩時間：約${Math.round(w.elapsed_seconds/60)}分</p>`:''}<p class="walk-log-mood">「${esc(w.mood)}」</p>${w.preference&&w.preference!==w.mood?`<p class="walk-log-pref">${esc(w.preference)}</p>`:''}<ul class="visit-list">${w.places.map(p=>`<li><span class="place-kind">${esc(p.kind)}</span><b>${esc(p.name)}</b>${p.comment?`<p class="note">${esc(p.comment)}</p>`:''}</li>`).join('')}</ul></li>`).join('')}</ol></section>`).join('')}${trackHistoryMarkup()}${button('trackmap','歩いた道を地図で見る','secondary wide')}${button('back','戻る','secondary wide')}${walks.length?button('erase-walks','歩いた記録をすべて消す','text-button'):''}`;
+      app.innerHTML=`<h2 class="diary-title">歩いた記録</h2><p class="lead">${walks.length?`${walks.length}回の散歩で、${count}か所に立ち寄りました。このブラウザにだけ保存されています。`:'まだ記録はありません。散歩で場所に着くと、ここに残ります。'}</p>${days.map(g=>`<section class="diary-day"><h3 class="diary-date">${esc(g.day)}</h3><ol class="walk-log">${g.walks.map(w=>`<li><p class="walk-log-head"><time datetime="${esc(w.started_at)}">${esc(timeText(w.started_at))}</time>${w.mock?'<span class="badge">見本</span>':''}<button type="button" class="log-delete" data-delete-walk="${esc(w.id)}">この記録を消す</button></p>${w.status==='stopped'?'<p class="subtle">途中で終了</p>':''}${(()=>{const parts=[];if(w.elapsed_seconds!==null)parts.push(`約${Math.round(w.elapsed_seconds/60)}分`);const m=walkedMeters(w);if(m>0)parts.push(`約${formatDistance(m)}`);return parts.length?`<p class="subtle">${esc(parts.join('・'))}</p>`:'';})()}<p class="walk-log-mood">「${esc(w.mood)}」</p>${w.preference&&w.preference!==w.mood?`<p class="walk-log-pref">${esc(w.preference)}</p>`:''}<ul class="visit-list">${w.places.map(p=>`<li><span class="place-kind">${esc(p.kind)}</span><b>${esc(p.name)}</b>${p.comment?`<p class="note">${esc(p.comment)}</p>`:''}</li>`).join('')}</ul></li>`).join('')}</ol></section>`).join('')}${button('trackmap','歩いた道を地図で見る','secondary wide')}${button('back','戻る','secondary wide')}${walks.length?button('erase-walks','歩いた記録をすべて消す','text-button'):''}`;
       event('#back','click',()=>go(state.historyBack));
       event('#trackmap','click',()=>{state.trackmapBack='history';go('trackmap');});
-      event('#erase-tracks','click',()=>{if(!confirm('保存した歩いた道の履歴をすべて削除しますか？元に戻せません。'))return;tracker.clearAll();go('history');if(tracker.status().error)setError(tracker.status().error);});
-      event('#erase-walks','click',()=>{if(!confirm('歩いた記録をすべて消します。元に戻せません。よろしいですか？'))return;storage.remove('walks');go('history');});
+      app.querySelectorAll('[data-delete-walk]').forEach(b=>b.addEventListener('click',async()=>{
+        const id=b.dataset.deleteWalk;
+        if(!await ask('この散歩の記録（歩いた道も含む）を消します。元に戻せません。',{ok:'消す',danger:true}))return;
+        storage.set('walks',loadWalks().filter(w=>w.id!==id));
+        try{for(const t of loadTracks())if(t.id===id||t.id.startsWith(`${id}~`))trackStore.remove(t.id);}catch(e){state.trackNotice=e.message;}
+        go('history');
+      }));
+      event('#erase-walks','click',async()=>{if(!await ask('歩いた記録と歩いた道の履歴をすべて消します。元に戻せません。',{ok:'すべて消す',danger:true}))return;storage.remove('walks');tracker.clearAll();go('history');});
     } else if (s === 'trackmap') {
       const tracks=loadTracks().filter(t=>t.mock===mock&&t.points.length>=2);
-      const total=tracks.reduce((n,t)=>n+t.points.slice(1).reduce((m,p,i)=>m+trackDistance(t.points[i],p),0),0);
+      const total=tracks.reduce((n,t)=>n+trackLength(t.points),0);
       app.innerHTML=`<div class="route-head"><h2 class="route-title">歩いた道</h2><p class="route-meta"><span>${tracks.length}回分</span><span>合計 約<strong>${esc((total/1000).toFixed(1))}</strong>km</span></p></div>${mapMarkup('route-map')}${attribution()}${tracks.length?'<ul class="legend" aria-label="線と印の意味"><li><span class="legend-line latest" aria-hidden="true"></span>一番新しい道</li><li><span class="legend-line" aria-hidden="true"></span>それより前の道</li><li><span class="legend-dot" aria-hidden="true"></span>立ち寄った場所</li></ul>':''}<p class="subtle">保存した道を、7日間表示します。</p>${tracks.length?'':'<p class="lead">まだ表示できる道がありません。ルート画面で「歩いた道と記録を保存する」を選んで歩くと、ここに重なっていきます。</p>'}${button('back','戻る','secondary wide')}`;
       event('#back','click',()=>go(state.trackmapBack||'mood'));
       trackMap(tracks).catch(e=>setError(e.message));
@@ -365,19 +411,13 @@ function boot() {
     try { return trackStore.list(); } catch(e) { state.trackNotice=e.message;return []; }
   }
   function updateTrackStatus() {
-    const info=tracker.status(),el=$('#track-status'),stop=$('#stop-track');
-    if(el)el.textContent=info.error?`歩いた道を記録できませんでした。${info.error}`:info.active?'歩いた道を記録中':info.status==='limit'?'記録の上限に達したため、記録を止めました。':info.status==='stopped'?'歩いた道の記録を止めました。':'';
-    if(el)el.hidden=!el.textContent; // 保存しないときは何も表示しない
-    if(stop)stop.hidden=!info.active;
+    const info=tracker.status(),row=$('#track-row'),el=$('#track-status');
+    const text=info.error?`歩いた道を記録できませんでした。${info.error}`:info.status==='limit'?'記録の上限に達しました':'';
+    if(el){el.textContent=text;el.dataset.state=info.active?'on':'off';}
+    if(row)row.hidden=!text; // 保存しない散歩では何も表示しない
   }
-  function trackHistoryMarkup() {
-    const tracks=loadTracks().reverse();
-    const items=tracks.map(t=>{
-      const length=t.points.slice(1).reduce((n,p,i)=>n+trackDistance(t.points[i],p),0);
-      return `<li><time>${esc(dateText(new Date(t.started_at).toISOString()))}</time> ${t.mock?'（見本）':''}<p>約${esc(formatDistance(length))}歩きました</p></li>`;
-    }).join('');
-    return `<section><h3>歩いた道の記録</h3><p class="subtle">このブラウザに7日間保存します。距離は目安です。</p>${state.trackNotice?`<p class="warning">${esc(state.trackNotice)}</p>`:''}${tracks.length?`<ul>${items}</ul>${button('erase-tracks','履歴をすべて削除する','text-button')}`:'<p class="subtle">履歴はまだありません。</p>'}</section>`;
-  }
+
+
 
   function formatDistance(m) { return m>=1000?`${(m/1000).toFixed(1)} km`:`${Math.round(m)} m`; }
   function routeBody() { return {mood:state.mood,preference:state.preference,crowd:state.crowd,lat:state.origin.lat,lon:state.origin.lon,minutes:state.minutes,exclude_ids:excludeIds(state.excluded,[]),include_ids:[]}; }
@@ -461,8 +501,7 @@ function boot() {
       // 歩行中：ルートのうち通ったところは薄い色、これからの道は緑。自分が実際に歩いた線は青で重ねる
       passedLine=new google.maps.Polyline({map,path:[],strokeColor:'#9aa596',strokeWeight:6,strokeOpacity:.85,zIndex:1});
       remainLine=new google.maps.Polyline({map,path:[],strokeColor:'#294d3c',strokeWeight:5,strokeOpacity:.95,zIndex:2});
-      trailLine=new google.maps.Polyline({map,path:[],strokeColor:'#3978c2',strokeWeight:4,strokeOpacity:.75,zIndex:3});
-      overlays.push(passedLine,remainLine,trailLine);updateRouteProgress();
+      overlays.push(passedLine,remainLine);updateRouteProgress();
     } else overlays.push(new google.maps.Polyline({map,path,strokeColor:'#294d3c',strokeWeight:5,strokeOpacity:.9}));
     overlays.push(new google.maps.Marker({map,position:start,title:'出発地',label:'発'}));
     state.route.places.forEach((p,i)=>{
@@ -508,7 +547,12 @@ function boot() {
     state.progressAlong=Math.max(state.progressAlong||0,reached);
     const ll=pts=>pts.map(p=>({lat:p.lat,lng:p.lon}));
     if(passedLine&&remainLine){const [done,rest]=splitPath(g.pts,g.cum,state.progressAlong);passedLine.setPath(ll(done));remainLine.setPath(ll(rest));}
-    if(trailLine)trailLine.setPath(ll(state.trail||[]));
+    // 自分が歩いた線：途切れた区間ごとに別の線にする
+    if(remainLine&&window.google?.maps){
+      const segs=splitTrack(state.trail||[]).filter(seg=>seg.length>=2);
+      while(trailLines.length<segs.length){const l=new google.maps.Polyline({map,path:[],strokeColor:'#3978c2',strokeWeight:4,strokeOpacity:.75,zIndex:3});trailLines.push(l);overlays.push(l);}
+      trailLines.forEach((l,k)=>l.setPath(segs[k]?ll(segs[k]):[]));
+    }
   }
   // 保存した過去の道（今歩いている散歩の分は除く）
   function pastTracks() {
@@ -519,8 +563,9 @@ function boot() {
   function drawPastTracks() {
     for(const l of pastLines)l.setMap(null);pastLines=[];
     if(!map||!state.showPast||state.screen!=='walk'||!window.google?.maps)return;
-    for(const t of pastTracks()){
-      const line=new google.maps.Polyline({map,path:t.points.map(p=>({lat:p.lat,lng:p.lon})),strokeColor:'#7d8f80',strokeWeight:4,strokeOpacity:.35,zIndex:0,clickable:false});
+    for(const t of pastTracks())for(const seg of splitTrack(t.points)){
+      if(seg.length<2)continue;
+      const line=new google.maps.Polyline({map,path:seg.map(p=>({lat:p.lat,lng:p.lon})),strokeColor:'#7d8f80',strokeWeight:4,strokeOpacity:.35,zIndex:0,clickable:false});
       pastLines.push(line);overlays.push(line);
     }
   }
@@ -532,7 +577,8 @@ function boot() {
       userMarker=new google.maps.Marker({map,position:p,title:'現在地',zIndex:200,icon:{path:google.maps.SymbolPath.CIRCLE,scale:7,fillColor:'#3978c2',fillOpacity:1,strokeColor:'white',strokeWeight:2}});
       overlays.push(accuracyCircle,userMarker);
     }
-    if(pan&&state.follow)map.panTo(p);
+    if(state.zoomToMe){map.setCenter(p);map.setZoom(18);state.zoomToMe=false;} // 「現在地に戻る」を押したあと、最初に位置が取れたとき
+    else if(pan&&state.follow)map.panTo(p);
   }
 
   // ---- 歩いた道の地図 ----
@@ -543,9 +589,11 @@ function boot() {
     map=newMap(container,{lat:state.origin.lat,lng:state.origin.lon},14);
     const bounds=new google.maps.LatLngBounds();let any=false;
     tracks.forEach((t,i)=>{
-      const path=t.points.map(p=>({lat:p.lat,lng:p.lon}));path.forEach(p=>{bounds.extend(p);any=true;});
       const latest=i===tracks.length-1;
-      overlays.push(new google.maps.Polyline({map,path,strokeColor:latest?'#294d3c':'#5f8a6f',strokeWeight:latest?5:4,strokeOpacity:latest?.95:.6}));
+      for(const seg of splitTrack(t.points)){ // 途切れた区間はつながない
+        const path=seg.map(p=>({lat:p.lat,lng:p.lon}));path.forEach(p=>{bounds.extend(p);any=true;});
+        if(path.length>=2)overlays.push(new google.maps.Polyline({map,path,strokeColor:latest?'#294d3c':'#5f8a6f',strokeWeight:latest?5:4,strokeOpacity:latest?.95:.6}));
+      }
     });
     visited.forEach(p=>{const position={lat:p.lat,lng:p.lon};bounds.extend(position);any=true;
       overlays.push(new google.maps.Marker({map,position,title:p.name,icon:{path:google.maps.SymbolPath.CIRCLE,scale:5,fillColor:'#fffef9',fillOpacity:1,strokeColor:'#294d3c',strokeWeight:2}}));});
@@ -560,7 +608,7 @@ function boot() {
     const lats=all.map(p=>p.lat),lons=all.map(p=>p.lon),minLat=Math.min(...lats),maxLat=Math.max(...lats),minLon=Math.min(...lons),maxLon=Math.max(...lons);
     const kx=Math.cos(minLat*Math.PI/180),w=Math.max((maxLon-minLon)*kx,1e-5),h=Math.max(maxLat-minLat,1e-5),scale=Math.min(400/w,210/h);
     const xy=p=>`${(20+((p.lon-minLon)*kx)*scale+(400-w*scale)/2).toFixed(1)},${(20+(maxLat-p.lat)*scale+(210-h*scale)/2).toFixed(1)}`;
-    el.innerHTML=`<svg viewBox="0 0 440 250" role="img" aria-label="記録した道の図"><rect class="mock-ground" width="440" height="250"/>${tracks.map((t,i)=>`<polyline class="track-line${i===tracks.length-1?' latest':''}" points="${t.points.map(xy).join(' ')}"/>`).join('')}${visited.map(p=>{const [x,y]=xy(p).split(',');return `<circle class="track-visit" cx="${x}" cy="${y}" r="5"/>`;}).join('')}</svg>`;
+    el.innerHTML=`<svg viewBox="0 0 440 250" role="img" aria-label="記録した道の図"><rect class="mock-ground" width="440" height="250"/>${tracks.map((t,i)=>splitTrack(t.points).filter(seg=>seg.length>=2).map(seg=>`<polyline class="track-line${i===tracks.length-1?' latest':''}" points="${seg.map(xy).join(' ')}"/>`).join('')).join('')}${visited.map(p=>{const [x,y]=xy(p).split(',');return `<circle class="track-visit" cx="${x}" cy="${y}" r="5"/>`;}).join('')}</svg>`;
     setMapLabel('キーがないため、地図の代わりに記録した道だけを図にしています。');
   }
 
@@ -591,15 +639,20 @@ function boot() {
   function receivePosition(p) {
     if(state.screen!=='walk'||!validPoint(p))return;tracker.record(p);state.position=p;
     // 自分が歩いた線（画面表示用。保存はしない）。精度50m以内、5m以上動いたときだけ足す
-    if(!p.simulated&&p.accuracy<=50){const last=state.trail[state.trail.length-1];if(!last||distanceMeters(last,p)>=5)state.trail=[...state.trail,{lat:p.lat,lon:p.lon}].slice(-3000);}state.geoMessage=p.accuracy>50?'位置が不正確です。着いたら「着いた」を押してください。':'';
-    if(isArrival(p,state.route.places[state.index])){arrive();return;}updateWalk();
+    if(!p.simulated&&p.accuracy<=50){const last=state.trail[state.trail.length-1];if(!last||distanceMeters(last,p)>=5)state.trail=[...state.trail,{lat:p.lat,lon:p.lon,timestamp:p.timestamp}].slice(-3000);}state.geoMessage=p.accuracy>50?'位置が不正確です。着いたら「着いた」を押してください。':'';
+    // 近づいたら知らせるだけにして、「着いた」は本人が押す（位置のずれで勝手に進まないように）
+    if(isArrival(p,state.route.places[state.index]))state.nearIndex=state.index;
+    updateWalk();
   }
   function updateWalk() {
     if(state.screen!=='walk')return;updateTrackStatus();updateUserMarker();const p=state.route.places[state.index],from=state.position||state.origin;
     const r=remainingToNext();if(r.road&&state.position)state.progressAlong=Math.max(state.progressAlong||0,r.along);updateRouteProgress();
     $('#walk-distance').innerHTML=`${esc(formatDistance(r.meters).replace(/ (m|km)$/,''))}<small>${r.meters>=1000?'km':'m'}</small>`;
     $('#walk-direction').textContent=`${directionLabel(r.base,p)}の方角${r.road?'':'（直線距離）'}`;
-    {const text=state.geoMessage||(state.position?'':'現在地を確認できていません。着いたら「着いた」を押してください。');$('#geo-status').textContent=text;$('#geo-status').hidden=!text;}
+    const near=state.nearIndex===state.index,note=$('#near-note');
+    if(note){note.textContent=near?`${p.name}のそばに来ました`:'';note.hidden=!near;}
+    $('#arrive')?.setAttribute?.('data-near',String(near)); // classListを持たない簡易DOM（テスト）でも止まらないように
+    {const text=near?'':state.geoMessage||(state.position?'':'現在地を確認できていません。着いたら「着いた」を押してください。');$('#geo-status').textContent=text;$('#geo-status').hidden=!text;}
   }
   function arrive() {stopWatch();go('reflect');saveActive();}
   function nextPlace() {state.index++;state.geoMessage='';state.follow=true;if(state.index>=state.route.places.length){stopWatch();finishWalk();go('done');}else{go('walk');saveActive();startWatch();}}

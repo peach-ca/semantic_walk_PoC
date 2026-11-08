@@ -35,4 +35,4 @@ node --test web/tests/tracking.test.mjs web/tests/walk-restart.test.mjs
 ```
 
 新しい試験はブラウザ操作を模した最小DOMと仮の位置データを使う。Google/Gemini/OpenAIのAPIや実GPSは使わない。
-実ブラウザの描画、ネイティブ確認ダイアログ、スマホの位置取得は別途手元で確認する。
+終了などの確認は、ブラウザの確認ダイアログではなくアプリの画面の中で表示する。実ブラウザの描画、スマホの位置取得は別途手元で確認する。
