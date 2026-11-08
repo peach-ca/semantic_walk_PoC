@@ -4,6 +4,7 @@
 
 Google の API も Gemini も呼ばない。places.json も使わない。
 """
+import math
 from datetime import datetime
 
 import pytest
@@ -88,12 +89,26 @@ def test_route_fits_in_time():
     assert walk["total_minutes"] <= 30 + route.STAY_MIN  # 最後の1か所ぶんの誤差まで
 
 
-def test_must_place_comes_first():
+def test_must_place_is_kept():
     start = (35.0085, 135.7485)
-    near = place("近い", lat=35.0086, lon=135.7486, pid="osm:node/1")
-    far = place("遠い", lat=35.0120, lon=135.7485, pid="osm:node/2")
-    ordered = route.order_and_fit(start, [near, far], 60, {"osm:node/2"})
-    assert ordered[0]["id"] == "osm:node/2"
+    others = [place(f"p{i}", lat=35.0085 + 0.003 * math.cos(i), lon=135.7485 + 0.003 * math.sin(i),
+                    pid=f"osm:node/{i}") for i in range(1, 9)]
+    far = place("遠い", lat=35.0140, lon=135.7485, pid="osm:node/99")
+    ordered = route.order_and_fit(start, others + [far], 30, {"osm:node/99"})
+    assert "osm:node/99" in [p["id"] for p in ordered]
+
+
+def test_route_uses_the_time_and_spreads_out():
+    """60分の指定で、歩く時間が半分以上を占め、立ち寄りは上限まで。"""
+    start = (35.0262, 135.7808)
+    ring = [place(f"r{i}", lat=start[0] + 0.004 * math.cos(i * 0.7), lon=start[1] + 0.005 * math.sin(i * 0.7),
+                  pid=f"osm:node/{i}") for i in range(9)]
+    close = [place(f"c{i}", lat=start[0] + 0.0004 * i, lon=start[1], pid=f"osm:node/c{i}") for i in range(1, 4)]
+    ordered = route.order_and_fit(start, ring + close, 60)
+    est = route.estimate(start, ordered)
+    assert len(ordered) <= route.max_stops(60)
+    assert est["total_minutes"] <= 60 + 2
+    assert est["walk_minutes"] >= 30
 
 
 # ---------- 線の変換（Google の仕様書の例） ----------
@@ -140,3 +155,29 @@ def test_rate_limiter_per_ip():
     rl = safety.RateLimiter(per_ip_per_hour=2, global_per_day=100)
     assert [rl.allow("a")[0] for _ in range(3)] == [True, True, False]
     assert rl.allow("b")[0] is True
+
+
+# ---------- 行きと帰りで同じ道を通らない ----------
+def test_decode_is_inverse_of_encode():
+    pts = [(35.0262, 135.7808), (35.0301, 135.7790), (35.0285, 135.7752)]
+    got = route.decode_polyline(route.encode_polyline(pts))
+    assert all(abs(a[0] - b[0]) < 1e-5 and abs(a[1] - b[1]) < 1e-5 for a, b in zip(got, pts))
+
+
+def test_out_and_back_has_high_overlap_and_loop_has_low():
+    s, far = (35.0262, 135.7808), (35.0352, 135.7808)        # 北へ約1km
+    out_and_back = [s, far, s]
+    loop = [s, far, (35.0352, 135.7918), (35.0262, 135.7918), s]  # 四角く1周
+    assert route.overlap_ratio(out_and_back) > 0.4
+    assert route.overlap_ratio(loop) < 0.05
+
+
+def test_detour_via_is_placed_off_the_shared_road():
+    s = (35.0262, 135.7808)
+    stop = {"id": "x", "lat": 35.0352, "lon": 135.7808}
+    go = [s, (35.0307, 135.7808), (35.0352, 135.7808)]
+    back = list(reversed(go))                                  # 同じ道で帰ってくる
+    vias = route._detour_vias(s, [stop], [go, back])
+    assert 1 in vias                                            # 帰りの区間に経由点
+    lat, lon = vias[1]
+    assert abs(lon - 135.7808) > 0.001                          # 来た道（経度一定）から横にずれている

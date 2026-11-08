@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from .llm import ask_json
 from .osm_data import label
+from .route import target_radius
 from .safety import famous_names
 
 Crowd = Literal["avoid", "neutral", "ok"]
@@ -52,10 +53,14 @@ class Pick(BaseModel):
 class Selection(BaseModel):
     interpretation: str = Field(description="気分をどう受け取ったか。60文字以内")
     picks: list[Pick] = Field(min_length=1, max_length=10)
+    anchor: int | None = Field(default=None, description="散歩の折り返し地点にする場所の番号。picks の中から1つ")
 
 
-def select(mood: str, preference: str | None, crowd: str, candidates: list[dict], n: int = 8) -> Selection:
+def select(mood: str, preference: str | None, crowd: str, candidates: list[dict], n: int = 8,
+           minutes: int = 60) -> Selection:
     lines = [f"{i}. {p['name']}（{label(p)}・{p['dist']}m）" for i, p in enumerate(candidates)]
+    r = target_radius(minutes)
+    anchor_near, anchor_far = int(r * 0.7), int(r * 1.5)
     crowd_rule = {
         "avoid": "人混みを避けたい。次の有名な場所やその境内・周辺の一部は選ばない: " + "、".join(famous_names()),
         "neutral": "人の多さは気にしない。",
@@ -72,8 +77,10 @@ def select(mood: str, preference: str | None, crowd: str, candidates: list[dict]
 - 一般に公開されていない場所（非公開の寺院の塔頭、私有地、学校、住宅など）は選ばない
 - {crowd_rule}
 - 同じ種類ばかりにしない（寺社だけ、カフェだけ、にしない）
+- 散歩は {minutes} 分で、出発地に戻ってくる。近い場所ばかりにせず、候補の距離（m）を見て、近い・中くらい・遠い場所を混ぜる
 - hint は「ここで何を感じられそうか」を30文字以内の一言で。名前の由来・歴史・営業時間などの事実は書かない（不確かなことを書かないため）
 - interpretation は気分をどう受け取ったかを60文字以内で
+- anchor には、picks の中から「散歩の折り返し地点」にする場所を1つ選ぶ。気分（とくに選んだ方向）に一番合い、出発地から {anchor_near}〜{anchor_far}m くらいの場所。合うものがなければ null
 
 # 候補一覧（OpenStreetMap より）
 {chr(10).join(lines)}
@@ -83,4 +90,6 @@ def select(mood: str, preference: str | None, crowd: str, candidates: list[dict]
     sel.picks = [p for p in sel.picks if 0 <= p.index < len(candidates) and not (p.index in seen or seen.add(p.index))]
     for p in sel.picks:
         p.hint = p.hint[:40]
+    if sel.anchor is not None and sel.anchor not in {p.index for p in sel.picks}:
+        sel.anchor = None
     return sel

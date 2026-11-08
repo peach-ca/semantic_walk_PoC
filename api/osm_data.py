@@ -53,7 +53,7 @@ LABELS = {
     ("natural", "tree_row"): "並木",
     ("natural", "wood"): "林",
 }
-KEY_LABELS = {"historic": "史跡・碑", "craft": "工房", "shop": "お店", "natural": "自然"}
+KEY_LABELS = {"historic": "史跡・碑", "craft": "工房", "shop": "お店", "natural": "自然", "waterway": "川沿い"}
 
 SHOP_AMENITIES = {"cafe", "public_bath", "bar", "pub", "restaurant", "fast_food", "marketplace", "theatre"}
 
@@ -100,7 +100,7 @@ def category(p: dict) -> str:
         return "worship"
     if k == "historic" or (k == "tourism" and v in ("artwork",)):
         return "historic"
-    if k in ("leisure", "natural", "man_made") or (k == "tourism" and v == "viewpoint") or (
+    if k in ("leisure", "natural", "man_made", "waterway") or (k == "tourism" and v == "viewpoint") or (
         k == "amenity" and v in ("fountain", "clock")
     ):
         return "outdoor"
@@ -108,7 +108,9 @@ def category(p: dict) -> str:
 
 
 def inventory(lat: float, lon: float, radius: float, exclude: set[str] | None = None) -> list[dict]:
-    """出発地から radius m 以内の候補を、種類ごとに近い順で PER_KIND 件ずつ集める。"""
+    """出発地から radius m 以内の候補を集める。
+    近い場所ばかりにならないよう、距離を3つの帯（近い・中くらい・遠い）に分け、
+    種類ごと・帯ごとに近い順で PER_KIND/3 件ずつ取る。"""
     exclude = exclude or set()
     near = []
     for p in all_places():
@@ -119,14 +121,20 @@ def inventory(lat: float, lon: float, radius: float, exclude: set[str] | None = 
             near.append({**p, "dist": round(d)})
     near.sort(key=lambda p: p["dist"])
 
-    counts: dict[tuple[str, str], int] = {}
+    per_band = max(1, PER_KIND // 3)
+    counts: dict[tuple[str, str, int], int] = {}
+    names: dict[tuple[str, int], int] = {}
     out: list[dict] = []
     for p in near:
-        kind = (p["key"], p["value"] if p["key"] != "shop" else "*")
-        if counts.get(kind, 0) >= PER_KIND:
-            continue
+        band = min(2, int(3 * p["dist"] / radius)) if radius else 0
+        kind = (p["key"], p["value"] if p["key"] != "shop" else "*", band)
+        if counts.get(kind, 0) >= per_band or names.get((p["name"], band), 0) >= 1:
+            continue  # 同じ川の点ばかりにならないよう、同じ名前は帯ごとに1点まで
         counts[kind] = counts.get(kind, 0) + 1
+        names[(p["name"], band)] = 1
         out.append(p)
-        if len(out) >= MAX_ITEMS:
-            break
+    # 多すぎるときは、帯ごとに均等に残す
+    if len(out) > MAX_ITEMS:
+        by_band = [[p for p in out if min(2, int(3 * p["dist"] / radius)) == b] for b in range(3)]
+        out = [p for band in by_band for p in band[: MAX_ITEMS // 3]]
     return out

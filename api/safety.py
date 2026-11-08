@@ -137,7 +137,7 @@ def decide(place: dict, google: dict | None, crowd: str, now: datetime,
         return True, "水辺です。足元に気をつけて"
     if cat == "outdoor" or place["value"] == "viewpoint":
         return True, "屋外です。暗くなる前に"
-    if checked and not google:
+    if checked and not google and place["key"] != "waterway":
         return True, "地図で確認できなかった場所です。入れなさそうなら次へ"
     return True, None
 

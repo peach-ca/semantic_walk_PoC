@@ -63,6 +63,7 @@ class Pick:
 class Selection:
     interpretation: str
     picks: list[Pick] = field(default_factory=list)
+    anchor: int | None = None
 
 
 def _wanted(text: str) -> set[tuple[str, str | None]]:
@@ -93,13 +94,10 @@ def select(mood: str, preference: str | None, candidates: list[dict], n: int = 8
         picks.append(Pick(index=i, hint=HINTS[category(p)]))
         if len(picks) >= n:
             break
-    return Selection(interpretation=INTERPRETATION, picks=picks)
-
-    matched = [i for i, p in enumerate(candidates) if _matches(p, wanted)]
-    if len(matched) >= 3:
-        candidates_idx = matched
-    else:
-        candidates_idx = list(range(len(candidates)))
+    # 目的地: 気分に合う場所のうち、出発地から一番遠いもの
+    matched = [p.index for p in picks if _matches(candidates[p.index], wanted)]
+    anchor = max(matched, key=lambda i: candidates[i].get("dist", 0)) if matched else None
+    return Selection(interpretation=INTERPRETATION, picks=picks, anchor=anchor)
 
 
 def describe(p: dict) -> str:
