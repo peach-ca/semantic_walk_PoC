@@ -79,6 +79,7 @@ function boot() {
   let controller = null, timer = null, watch = null, map = null, overlays = [], userMarker = null, accuracyCircle = null, originMarker = null,
     routeBounds = null, mapPromise = null, configChecked = false, requestToken = 0, mapsAuthError = false;
 
+  const ACTIVE_TTL_MS = 12 * 60 * 60 * 1000; // loadActive() より前に置く（後ろだと起動時に参照できず、保存が消える）
   const pendingWalk = loadActive();
   if (pendingWalk) state.screen = 'resume';
 
@@ -108,7 +109,6 @@ function boot() {
 
   // ---- 歩いている途中の散歩（画面を閉じても続きから歩けるように） ----
   // ルートと進み具合をこのブラウザに一時保存する。Google由来の内容を長く残さないよう、12時間で破棄し、maps_uri は保存しない。
-  const ACTIVE_TTL_MS = 12 * 60 * 60 * 1000;
   function saveActive() {
     if (!state.walk || !state.route || !['walk','reflect'].includes(state.screen)) return;
     const r = state.route;
