@@ -270,6 +270,11 @@ textarea.text-field { min-height: 120px; resize: vertical; }
 .home-links .secondary { min-height: 46px; font-size: 13px; }
 .track-line { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: .55; }
 .track-line.latest { stroke-width: 4; opacity: .95; }
+.legend { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 18px; padding: 0; margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.legend-line { display: inline-block; width: 24px; height: 4px; border-radius: 2px; background: #5f8a6f; opacity: .6; }
+.legend-line.latest { height: 5px; background: #294d3c; opacity: 1; }
+.legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #fffef9; border: 2px solid #294d3c; }
 .track-visit { fill: var(--surface); stroke: var(--green); stroke-width: 2; }
 
 /* ---- 画面幅 ---- */
