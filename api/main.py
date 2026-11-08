@@ -204,6 +204,7 @@ def make_route(body: RouteReq, req: Request):
         "total_minutes": rt["total_minutes"],
         "walk_minutes": rt.get("walk_minutes"),
         "stay_minutes": rt.get("stay_minutes"),
+        "legs": rt.get("legs", []),
         "distance_m": rt["distance_m"],
         "sources": SOURCES,
         "attributions": ATTRIBUTIONS,

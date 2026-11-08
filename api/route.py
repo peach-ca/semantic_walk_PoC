@@ -11,7 +11,8 @@ from .osm_data import haversine
 WALK_M_PER_MIN = 70
 DETOUR = 1.3  # 直線距離 → 道のりのおおよその倍率
 STAY_MIN = 0  # 「〇分」は歩く時間。立ち寄った場所で過ごす時間は含めない
-MIN_PER_STOP = 12  # 立ち寄りは「時間 ÷ 12分」か所まで（60分なら5か所）。歩く時間を主役にする
+MIN_PER_STOP = 15  # 立ち寄りは「時間 ÷ 15分」か所まで（60分なら4か所）。歩く時間を主役にする
+FILL = 0.85  # 歩く時間が目安のこれ未満なら、寄り道しない「歩く区間」を足して輪を広げる
 URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 FIELDS = "routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline"
 
@@ -117,32 +118,103 @@ def _ll(lat: float, lon: float) -> dict:
 def compute(start: tuple[float, float], ordered: list[dict], minutes: int | None = None) -> dict:
     """出発地 → 場所たち → 出発地 の歩くルート。polyline と所要時間（分、滞在込み）を返す。
 
-    行きと帰りで同じ道を通らないようにする:
-      1. まず普通にルートを取り、実際の道で「前に通った道をもう一度通る割合」（overlap）を測る
-      2. OVERLAP_LIMIT を超えていたら、重なっている区間の途中に「通過するだけの地点」（経由点）を
-         重なりと反対側にずらして置き、もう一度取る（Routes API は2回まで）
-      3. 重なりが減り、時間も指定の1.15倍以内なら、2回目を使う
+    1. 選ばれた場所が近くに固まっていて時間が余るときは、場所と場所の間に「通過するだけの地点」
+       （経由点）を外側に置いて輪を広げる（extend_vias）。場所は増やさず、歩く区間で時間を埋める
+    2. 実際の道で「前に通った道をもう一度通る割合」（overlap）を測り、OVERLAP_LIMIT を超えていたら、
+       重なっている区間に、重なりと反対側へずらした経由点を置いて取り直す（Routes API は2回まで）
     """
+    ext = extend_vias(start, ordered, minutes) if minutes else {}
     key = os.environ.get("MAPS_API_KEY")
     if not key:
-        return estimate(start, ordered)  # キーがない環境（相方の実験など）では直線距離で概算
+        return estimate(start, ordered, minutes, ext)  # キーがない環境では直線距離で概算
 
-    first = _request(key, start, ordered, vias={})
+    first = _request(key, start, ordered, vias=ext)
     best = first
-    if first["overlap"] > OVERLAP_LIMIT and first["legs"]:
-        vias = _detour_vias(start, ordered, first["legs"])
-        if vias:
+    if first["overlap"] > OVERLAP_LIMIT and first["_leg_pts"]:
+        more = {k: v for k, v in _detour_vias(start, ordered, first["_leg_pts"]).items() if k not in ext}
+        if more:
             try:
-                second = _request(key, start, ordered, vias)
+                second = _request(key, start, ordered, {**ext, **more})
                 limit = (minutes or 0) * 1.15
                 if second["overlap"] < first["overlap"] and (not minutes or second["total_minutes"] <= limit):
                     best = second
             except RuntimeError:
                 pass  # 2回目が失敗しても、1回目のルートで続ける
     best = dict(best)
-    best.pop("legs", None)
+    best.pop("_leg_pts", None)
     best["overlap"] = round(best["overlap"], 2)
     return best
+
+
+def _stops(start, ordered):
+    return [start] + [(p["lat"], p["lon"]) for p in ordered] + [start]
+
+
+def _walk_with_vias(start, ordered, vias) -> float:
+    """経由点も通ったときの歩く時間（概算、立ち寄りは含まない）。"""
+    st = _stops(start, ordered)
+    total = 0.0
+    for k in range(len(st) - 1):
+        if k in vias:
+            total += _walk_min(st[k], vias[k]) + _walk_min(vias[k], st[k + 1])
+        else:
+            total += _walk_min(st[k], st[k + 1])
+    return total
+
+
+def extend_vias(start, ordered: list[dict], minutes: int) -> dict[int, tuple[float, float]]:
+    """歩く時間が目安（minutes − 立ち寄り）に足りないとき、外側へ経由点を置いて輪を広げる。
+
+    区間ごと・30度おきの向きごとに「その向きにどこまで出れば足りない分を埋められるか」を計算し、
+    今ある地点から一番離れる（＝輪が広がる）置き方を選ぶ。経由点は2つまで。"""
+    target = minutes - STAY_MIN * len(ordered)
+    vias: dict[int, tuple[float, float]] = {}
+    if target <= 0 or not ordered:
+        return vias
+    st = _stops(start, ordered)
+    ref = start
+    st_xy = [_to_xy(p, ref) for p in st]
+    r_max = search_radius(minutes)
+    for _ in range(2):
+        cur = _walk_with_vias(start, ordered, vias)
+        need = target - cur
+        if cur >= FILL * target or need <= 1:
+            break
+        best = None
+        for k in range(len(st) - 1):
+            if k in vias:
+                continue
+            a, b = st[k], st[k + 1]
+            base = _walk_min(a, b)
+            for deg in range(0, 360, 30):
+                ux, uy = math.cos(math.radians(deg)), math.sin(math.radians(deg))
+                mid = ((st_xy[k][0] + st_xy[k + 1][0]) / 2, (st_xy[k][1] + st_xy[k + 1][1]) / 2)
+
+                def added(r):
+                    pt = _to_ll((mid[0] + ux * r, mid[1] + uy * r), ref)
+                    return _walk_min(a, pt) + _walk_min(pt, b) - base, pt
+
+                lo, hi = 0.0, r_max
+                if added(hi)[0] < need * 0.5:
+                    continue  # この向きでは半分も埋まらない
+                for _ in range(20):
+                    m = (lo + hi) / 2
+                    if added(m)[0] < need:
+                        lo = m
+                    else:
+                        hi = m
+                gain, pt = added(hi)
+                pxy = _to_xy(pt, ref)
+                if math.hypot(*pxy) > r_max:
+                    continue  # 出発地から遠すぎる（データの範囲や安全のため）
+                spread = min(math.hypot(pxy[0] - q[0], pxy[1] - q[1]) for q in st_xy)
+                score = (min(gain, need) / need >= 0.9, spread)
+                if best is None or score > best[0]:
+                    best = (score, k, pt)
+        if not best:
+            break
+        vias[best[1]] = best[2]
+    return vias
 
 
 OVERLAP_LIMIT = 0.2  # 道のりの2割以上が「同じ道をもう一度」なら、経由点で回り道させる
@@ -166,7 +238,7 @@ def _request(key: str, start, ordered: list[dict], vias: dict[int, tuple[float, 
         "languageCode": "ja-JP",
         "units": "METRIC",
     }
-    fields = FIELDS + ",routes.legs.polyline.encodedPolyline"
+    fields = FIELDS + ",routes.legs.polyline.encodedPolyline,routes.legs.duration,routes.legs.distanceMeters"
     r = requests.post(URL, json=body, headers={"X-Goog-Api-Key": key, "X-Goog-FieldMask": fields}, timeout=15)
     if r.status_code != 200:
         raise RuntimeError(f"Routes API {r.status_code}: {r.text[:300]}")
@@ -177,7 +249,10 @@ def _request(key: str, start, ordered: list[dict], vias: dict[int, tuple[float, 
     walk = round(int(str(rt.get("duration", "0s")).rstrip("s") or 0) / 60)
     stay = STAY_MIN * len(ordered)
     poly = rt.get("polyline", {}).get("encodedPolyline", "")
-    legs = [decode_polyline(leg.get("polyline", {}).get("encodedPolyline", "")) for leg in rt.get("legs", [])]
+    raw_legs = rt.get("legs", [])
+    legs = [decode_polyline(leg.get("polyline", {}).get("encodedPolyline", "")) for leg in raw_legs]
+    leg_info = [{"walk_minutes": round(int(str(leg.get("duration", "0s")).rstrip("s") or 0) / 60),
+                 "distance_m": leg.get("distanceMeters", 0)} for leg in raw_legs]
     return {
         "polyline": poly,
         "distance_m": rt.get("distanceMeters", 0),
@@ -185,7 +260,8 @@ def _request(key: str, start, ordered: list[dict], vias: dict[int, tuple[float, 
         "walk_minutes": walk,
         "stay_minutes": stay,
         "overlap": overlap_ratio(decode_polyline(poly)),
-        "legs": legs,
+        "legs": leg_info,
+        "_leg_pts": legs,
     }
 
 
@@ -303,14 +379,23 @@ def decode_polyline(s: str) -> list[tuple[float, float]]:
     return pts
 
 
-def estimate(start: tuple[float, float], ordered: list[dict]) -> dict:
-    """Routes API を使わない概算。polyline は空、時間は直線距離×1.3÷70m/分＋滞在。"""
-    pts = [start] + [(p["lat"], p["lon"]) for p in ordered] + [start]
+def estimate(start: tuple[float, float], ordered: list[dict], minutes: int | None = None,
+             vias: dict[int, tuple[float, float]] | None = None) -> dict:
+    """Routes API を使わない概算。線は地点を直線で結んだもの、時間は直線距離×1.3÷70m/分＋立ち寄り。"""
+    if vias is None:
+        vias = extend_vias(start, ordered, minutes) if minutes else {}
+    st = _stops(start, ordered)
+    pts, legs = [st[0]], []
+    for k in range(len(st) - 1):
+        seg = [st[k]] + ([vias[k]] if k in vias else []) + [st[k + 1]]
+        pts += seg[1:]
+        m = sum(_walk_min(x, y) for x, y in zip(seg, seg[1:]))
+        legs.append({"walk_minutes": round(m), "distance_m": round(m * WALK_M_PER_MIN)})
     walk = round(sum(_walk_min(a, b) for a, b in zip(pts, pts[1:])))
     dist = sum(haversine(a[0], a[1], b[0], b[1]) * DETOUR for a, b in zip(pts, pts[1:]))
     stay = STAY_MIN * len(ordered)
-    return {"polyline": encode_polyline(pts), "distance_m": round(dist),
-            "total_minutes": walk + stay, "walk_minutes": walk, "stay_minutes": stay}
+    return {"polyline": encode_polyline(pts), "distance_m": round(dist), "total_minutes": walk + stay,
+            "walk_minutes": walk, "stay_minutes": stay, "legs": legs, "overlap": 0.0}
 
 
 def encode_polyline(points: list[tuple[float, float]]) -> str:

@@ -181,3 +181,15 @@ def test_detour_via_is_placed_off_the_shared_road():
     assert 1 in vias                                            # 帰りの区間に経由点
     lat, lon = vias[1]
     assert abs(lon - 135.7808) > 0.001                          # 来た道（経度一定）から横にずれている
+
+
+def test_clustered_places_are_stretched_to_fill_the_time():
+    """選ばれた場所が出発地のすぐ近くに固まっていても、経由点で輪を広げて指定時間に近づける。"""
+    start = (35.0262, 135.7808)
+    near = [place(f"n{i}", lat=start[0] + 0.0012 * math.cos(i * 1.5), lon=start[1] + 0.0015 * math.sin(i * 1.5),
+                  pid=f"osm:node/n{i}") for i in range(5)]
+    ordered = route.order_and_fit(start, near, 60)
+    est = route.estimate(start, ordered, 60)
+    assert est["total_minutes"] >= 60 * 0.85
+    assert est["total_minutes"] <= 60 + 5
+    assert len(est["legs"]) == len(ordered) + 1
