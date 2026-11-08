@@ -6,9 +6,9 @@ __pycache__/
 *.pyc
 .env
 .env.*
-/data/
-/results/
-/cache/
+data/
+results/
+cache/
 *.osm
 *.pbf
 tunnel.log
