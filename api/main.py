@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import osm_data, places_check, route, selector
+from . import fallback, osm_data, places_check, route, selector
 from .llm import LLMError
 from .safety import BLOCK_MESSAGE, JST, RateLimiter, decide, is_crisis, static_ok
 
@@ -99,8 +99,9 @@ def clarify(body: ClarifyReq, req: Request):
     try:
         c = selector.clarify(body.mood)
     except LLMError as e:
-        log.warning("clarify failed: %s", e)
-        return err(503, "いま考えるのに時間がかかっています。少ししてからもう一度お願いします")
+        # Gemini が使えないときは、決まった問いかけで先に進めるようにする
+        log.warning("clarify failed, using fallback: %s", e)
+        return {**fallback.CLARIFY, "blocked": False, "fallback": True}
     return {"question": c.question, "options": [o.model_dump() for o in c.options], "blocked": False}
 
 
@@ -118,14 +119,19 @@ def make_route(body: RouteReq, req: Request):
 
     candidates = osm_data.inventory(body.lat, body.lon, radius, exclude | set(body.include_ids))
     if len(candidates) < 3:
-        return err(404, "この近くには、まだ案内できる場所のデータがありません")
+        if osm_data.haversine(body.lat, body.lon, *osm_data.AREA_CENTER) > osm_data.AREA_RADIUS_M:
+            return err(404, "この場所は対応エリアの外です。いまは京都市中心部（四条烏丸から約5km）だけに対応しています。"
+                            "出発地を京都大学（緯度 35.0262・経度 135.7808）などにして試してください")
+        return err(404, "この近くには候補になる場所が少ないため、ルートを作れませんでした。出発地を少し動かすか、時間を長くしてみてください")
 
-    # 1) Gemini が OSM の候補から選ぶ
+    # 1) Gemini が OSM の候補から選ぶ（使えないときはルールで選ぶ）
+    used_fallback = False
     try:
         sel = selector.select(body.mood, body.preference, body.crowd, candidates)
     except LLMError as e:
-        log.warning("select failed: %s", e)
-        return err(503, "いま考えるのに時間がかかっています。少ししてからもう一度お願いします")
+        log.warning("select failed, using fallback: %s", e)
+        sel = fallback.select(body.mood, body.preference, candidates)
+        used_fallback = True
     picked = [{**candidates[p.index], "hint": p.hint} for p in sel.picks]
 
     # ユーザーが「入れたい」と言った場所
@@ -200,6 +206,7 @@ def make_route(body: RouteReq, req: Request):
         "sources": SOURCES,
         "attributions": ATTRIBUTIONS,
         "blocked": False,
+        "fallback": used_fallback,
     }
 
 
