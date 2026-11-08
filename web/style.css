@@ -1,4 +1,4 @@
-/* よりみち 画面の見た目
+/* なまえのないみち 画面の見た目
    色の役割：緑＝基本の色、オレンジ＝「次の場所」と進み具合だけ、青＝現在地（Googleマップの表示に合わせる） */
 :root {
   color-scheme: light dark;
@@ -81,7 +81,8 @@ button:disabled { opacity: .5; cursor: wait; }
 
 /* ---- ヘッダー・左側の紹介 ---- */
 .site-header { max-width: 1360px; margin: auto; padding: 28px 48px; display: flex; align-items: center; gap: 28px; border-bottom: 1px solid var(--line); }
-.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-size: 23px; font-weight: 700; letter-spacing: .08em; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; font-size: 21px; font-weight: 700; letter-spacing: .06em; white-space: nowrap; }
+.brand-icon { display: block; width: 34px; height: 34px; flex: none; }
 .brand-mark { background: var(--green); color: var(--on-green); border-radius: 50%; width: 35px; height: 35px; display: grid; place-items: center; font-size: 25px; }
 .brand-en { font-size: 9px; letter-spacing: .18em; align-self: flex-end; margin-bottom: 6px; color: var(--muted); }
 .header-note { font-size: 12px; color: var(--muted); margin-left: auto; }
@@ -180,13 +181,18 @@ textarea.text-field { min-height: 120px; resize: vertical; }
 .summary-time { white-space: nowrap; font-size: 13px; color: var(--muted); }
 .summary-time strong { font-size: 30px; font-weight: 500; color: var(--ink); margin-right: 3px; font-variant-numeric: tabular-nums; }
 /* 結果画面はタイトル・説明より地図を優先する。出発地選択の地図は従来の大きさ。 */
-/* ルート画面：時間の行を上に詰め、地図に高さを回す */
-.app-panel:has(.route-overview) { padding-top: 14px; }
+/* ルート画面：気分の言葉を見出しに、場所の数と時間を添える */
+.app-panel:has(.route-head) { padding-top: 24px; }
+.route-head { display: grid; gap: 4px; }
+.route-title { font-size: 26px; line-height: 1.5; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.route-meta { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; font-size: 13px; color: var(--muted); }
+.route-meta strong { font-size: 22px; font-weight: 500; color: var(--ink); margin: 0 2px 0 4px; font-variant-numeric: tabular-nums; }
+.route-interpretation { font-size: 14px; line-height: 1.9; margin-top: 18px; }
 .route-overview { display: flex; align-items: baseline; gap: 10px; }
 .route-note { font-size: 12px; color: var(--muted); }
 .route-overview .subtle { margin: 0; }
 .route-overview .summary-time strong { font-size: 26px; margin: 0 2px 0 4px; }
-.map.route-map { height: clamp(380px, 68vh, 680px); height: clamp(380px, 68svh, 680px); margin-top: 8px; }
+.map.route-map { height: clamp(320px, 58vh, 600px); height: clamp(320px, 58svh, 600px); margin-top: 14px; }
 .trail { list-style: none; padding: 0; margin: 22px 0 0; }
 .trail > li { position: relative; padding-left: 42px; }
 .trail > li::before { content: ""; position: absolute; left: 13px; top: 0; bottom: 0; border-left: 2px dotted var(--green); }
@@ -256,7 +262,7 @@ textarea.text-field { min-height: 120px; resize: vertical; }
 .blocked { padding: 40px 0; }
 .blocked p { font-size: 16px; line-height: 2; white-space: pre-wrap; }
 
-.site-footer { max-width: 1264px; margin: 0 auto; display: flex; justify-content: space-between; gap: 20px; padding: 25px 48px calc(25px + env(safe-area-inset-bottom)); font-size: 10px; color: var(--muted); border-top: 1px solid var(--line); }
+.site-footer { max-width: 1264px; margin: 0 auto; display: flex; justify-content: flex-end; gap: 20px; padding: 25px 48px calc(25px + env(safe-area-inset-bottom)); font-size: 10px; color: var(--muted); border-top: 1px solid var(--line); }
 
 /* ---- 画面幅 ---- */
 @media (max-width: 950px) {
@@ -268,7 +274,8 @@ textarea.text-field { min-height: 120px; resize: vertical; }
 
 @media (max-width: 760px) {
   .site-header { padding: 14px 18px; gap: 10px; }
-  .brand { font-size: 20px; }
+  .brand { font-size: 18px; gap: 8px; }
+  .brand-icon { width: 30px; height: 30px; }
   .brand-mark { width: 30px; height: 30px; font-size: 21px; }
   .header-note { display: none; }
   .site-header .badge { margin-left: auto; }

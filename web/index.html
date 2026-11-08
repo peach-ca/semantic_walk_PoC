@@ -6,13 +6,18 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f5f4ec" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#121a16" media="(prefers-color-scheme: dark)">
-  <title>よりみち — 気分から、知らない近所へ</title>
+  <title>なまえのないみち — 気分から、知らない近所へ</title>
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="icon" href="./favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="./apple-touch-icon.png">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="apple-mobile-web-app-title" content="なまえのないみち">
   <link rel="stylesheet" href="./style.css">
   <script src="./app.js" type="module"></script>
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="./" aria-label="よりみち トップ"><span class="brand-mark" aria-hidden="true">↗</span>よりみち<span class="brand-en">YORIMICHI</span></a>
+    <a class="brand" href="./" aria-label="なまえのないみち トップ"><img class="brand-icon" src="./icon.svg" alt="" width="34" height="34">なまえのないみち</a>
     <span class="header-note">気分から、知らない近所へ。</span>
     <span id="mode-badge" class="badge"></span>
   </header>
@@ -25,7 +30,7 @@
     </aside>
     <main id="app" class="app-panel" tabindex="-1" aria-label="散歩をつくる"></main>
   </div>
-  <footer class="site-footer"><span>答えは、画面の外に。</span><span id="attribution">© OpenStreetMap contributors</span></footer>
+  <footer class="site-footer"><span id="attribution">© OpenStreetMap contributors</span></footer>
   <noscript>このアプリを使うにはJavaScriptを有効にしてください。</noscript>
 </body>
 </html>
