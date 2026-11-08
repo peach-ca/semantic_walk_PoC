@@ -6,18 +6,19 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#f5f4ec" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#121a16" media="(prefers-color-scheme: dark)">
-  <title>なまえのないみち — 気分から、知らない近所へ</title>
+  <title>Roamy — 気分から、知らない近所へ</title>
   <link rel="icon" href="./icon.svg" type="image/svg+xml">
   <link rel="icon" href="./favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="./apple-touch-icon.png">
   <link rel="manifest" href="./manifest.webmanifest">
-  <meta name="apple-mobile-web-app-title" content="なまえのないみち">
+  <meta name="apple-mobile-web-app-title" content="Roamy">
+  <script>try{var t=JSON.parse(localStorage.getItem('yorimichi:theme'));if(t==='dark'||t==='light'){document.documentElement.dataset.theme=t;document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.setAttribute('content',t==='dark'?'#121a16':'#f5f4ec');});}}catch(e){}</script>
   <link rel="stylesheet" href="./style.css">
   <script src="./app.js" type="module"></script>
 </head>
 <body>
   <header class="site-header">
-    <a class="brand" href="./" aria-label="なまえのないみち トップ"><img class="brand-icon" src="./icon.svg" alt="" width="34" height="34">なまえのないみち</a>
+    <a class="brand" href="./" aria-label="Roamy トップ"><img class="brand-icon" src="./icon.svg" alt="" width="34" height="34">Roamy</a>
     <span class="header-note">気分から、知らない近所へ。</span>
     <span id="mode-badge" class="badge"></span>
   </header>
