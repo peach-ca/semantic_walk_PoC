@@ -221,6 +221,7 @@ textarea.text-field { min-height: 120px; resize: vertical; }
 .map-notes .attribution, .map-notes .map-label { margin: 0; background: var(--surface); padding: 3px 8px; border-radius: 8px; box-shadow: var(--float); }
 .map-tools { position: absolute; top: 10px; right: 10px; z-index: 2; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .map-button { border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 999px; min-height: 40px; padding: 6px 14px; font-size: 12px; font-weight: 600; box-shadow: var(--float); }
+.map-button[aria-pressed="true"] { background: var(--green); color: var(--on-green); border-color: var(--green); }
 .sheet { position: relative; z-index: 3; margin-top: -22px; background: var(--surface); border-radius: 22px 22px 0 0; padding: 10px 30px 24px; }
 .sheet-handle { display: block; width: 40px; height: 4px; border-radius: 2px; background: var(--line); margin: 0 auto 14px; }
 .sheet-step { font-size: 12px; font-weight: 600; color: var(--orange); }
@@ -263,6 +264,13 @@ textarea.text-field { min-height: 120px; resize: vertical; }
 .blocked p { font-size: 16px; line-height: 2; white-space: pre-wrap; }
 
 .site-footer { max-width: 1264px; margin: 0 auto; display: flex; justify-content: flex-end; gap: 20px; padding: 25px 48px calc(25px + env(safe-area-inset-bottom)); font-size: 10px; color: var(--muted); border-top: 1px solid var(--line); }
+
+/* ---- ホームの入口・歩いた道の地図 ---- */
+.home-links { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-top: 18px; }
+.home-links .secondary { min-height: 46px; font-size: 13px; }
+.track-line { fill: none; stroke: var(--green); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; opacity: .55; }
+.track-line.latest { stroke-width: 4; opacity: .95; }
+.track-visit { fill: var(--surface); stroke: var(--green); stroke-width: 2; }
 
 /* ---- 画面幅 ---- */
 @media (max-width: 950px) {
