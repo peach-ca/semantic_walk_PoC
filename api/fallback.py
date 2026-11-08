@@ -95,6 +95,12 @@ def select(mood: str, preference: str | None, candidates: list[dict], n: int = 8
             break
     return Selection(interpretation=INTERPRETATION, picks=picks)
 
+    matched = [i for i, p in enumerate(candidates) if _matches(p, wanted)]
+    if len(matched) >= 3:
+        candidates_idx = matched
+    else:
+        candidates_idx = list(range(len(candidates)))
+
 
 def describe(p: dict) -> str:
     return label(p)
