@@ -376,7 +376,7 @@ function boot() {
       event('#finish-today','click',()=>go('done'));
     } else if (s === 'done') {
       const n=state.lastWalk?.places.length??0;
-      app.innerHTML=`${progress(4)}<div class="finish-mark" aria-hidden="true">↗</div><h2>おつかれさまでした。</h2><p class="lead">いつもの街に、<br>少しだけ違う景色が増えたなら。</p>${state.lastWalk?`<p class="subtle">今回は約${Math.round((state.lastWalk.elapsed_seconds??0)/60)}分・${n}か所に立ち寄りました。</p>`:''}${state.saveNotice?`<p class="error" role="alert">${esc(state.saveNotice)}</p>`:''}${button('again','また、よりみちする')}${button('history','散歩日記を見る','secondary wide')}${button('trackmap','足あとマップを見る','secondary wide')}${button('erase','このブラウザの散歩日記・足あと・外した場所を消す','text-button')}<p id="erase-status" class="subtle" role="status"></p>`;
+      app.innerHTML=`${progress(4)}<div class="finish-mark" aria-hidden="true">↗</div><h2>おつかれさまでした。</h2><p class="lead">いつもの街に、<br>少しだけ違う景色が増えたなら。</p>${state.lastWalk?`<p class="subtle">今回は約${Math.round((state.lastWalk.elapsed_seconds??0)/60)}分・${n}か所に立ち寄りました。</p>`:''}${state.saveNotice?`<p class="error" role="alert">${esc(state.saveNotice)}</p>`:''}${button('again','また、よりみちする')}${button('history','散歩日記を見る','secondary wide')}${button('trackmap','足あとマップを見る','secondary wide')}${button('erase','このブラウザの履歴を消す','text-button')}<p id="erase-status" class="subtle" role="status"></p>`;
       event('#again','click',()=>resetNewWalk());
       event('#history','click',()=>{state.historyBack='done';go('history');});
       event('#trackmap','click',()=>{state.trackmapBack='done';go('trackmap');});
