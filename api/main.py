@@ -127,7 +127,7 @@ def make_route(body: RouteReq, req: Request):
     # 1) Gemini が OSM の候補から選ぶ（使えないときはルールで選ぶ）
     used_fallback = False
     try:
-        sel = selector.select(body.mood, body.preference, body.crowd, candidates)
+        sel = selector.select(body.mood, body.preference, body.crowd, candidates, minutes=body.minutes)
     except LLMError as e:
         log.warning("select failed, using fallback: %s", e)
         sel = fallback.select(body.mood, body.preference, candidates)
@@ -175,13 +175,13 @@ def make_route(body: RouteReq, req: Request):
     # 4) Routes API（1回）
     ordered = kept
     try:
-        rt = route.compute(start, ordered)
+        rt = route.compute(start, ordered, body.minutes)
     except Exception as e:  # noqa: BLE001
         log.warning("routes failed: %s", e)
         return err(502, "歩くルートを作れませんでした。もう一度お願いします")
     t3 = time.time()
-    log.info("route: select %.1fs / places %.1fs (%d calls) / routes %.1fs, picked %d → kept %d, %d min",
-             t1 - t0, t2 - t1, calls, t3 - t2, len(picked), len(ordered), rt["total_minutes"])
+    log.info("route: select %.1fs / places %.1fs (%d calls) / routes %.1fs, picked %d → kept %d, %d min, overlap %s",
+             t1 - t0, t2 - t1, calls, t3 - t2, len(picked), len(ordered), rt["total_minutes"], rt.get("overlap"))
 
     places = []
     for p in ordered:
@@ -202,6 +202,9 @@ def make_route(body: RouteReq, req: Request):
         "places": places,
         "polyline": rt["polyline"],
         "total_minutes": rt["total_minutes"],
+        "walk_minutes": rt.get("walk_minutes"),
+        "stay_minutes": rt.get("stay_minutes"),
+        "legs": rt.get("legs", []),
         "distance_m": rt["distance_m"],
         "sources": SOURCES,
         "attributions": ATTRIBUTIONS,

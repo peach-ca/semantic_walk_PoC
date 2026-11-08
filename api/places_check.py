@@ -29,6 +29,10 @@ CACHE_TTL_SEC = 3600  # 規約上 Places の内容は長く保存しない。同
 _cache: dict[tuple[str, bool], tuple[float, dict | None]] = {}
 
 
+# 施設ではないもの（川沿いの点など）は Places に載っていないので調べない（料金の節約にもなる）
+NO_LOOKUP_KEYS = {"waterway"}
+
+
 def enabled() -> bool:
     """PLACES_CHECK=off にすると Places を呼ばない（開発中の節約用）。"""
     return os.environ.get("PLACES_CHECK", "on").lower() != "off"
@@ -54,7 +58,7 @@ def _same_name(a: str, b: str) -> bool:
 
 def lookup(place: dict, need_hours: bool = False) -> dict | None:
     """OSM の場所を Places で探す。見つからなければ None。"""
-    if not enabled():
+    if not enabled() or place.get("key") in NO_LOOKUP_KEYS:
         return None
     ck = (place["id"], need_hours)
     hit = _cache.get(ck)
