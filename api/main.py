@@ -221,6 +221,7 @@ def make_route(body: RouteReq, req: Request):
         "walk_minutes": rt.get("walk_minutes"),
         "stay_minutes": rt.get("stay_minutes"),
         "legs": rt.get("legs", []),
+        "overlap": rt.get("overlap"),
         "distance_m": rt["distance_m"],
         "sources": SOURCES,
         "attributions": ATTRIBUTIONS,
