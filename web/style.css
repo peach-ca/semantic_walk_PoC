@@ -220,7 +220,7 @@ textarea.text-field { min-height: 120px; resize: vertical; }
 .route-meta strong { font-size: 22px; font-weight: 500; color: var(--ink); margin: 0 2px 0 4px; font-variant-numeric: tabular-nums; }
 .route-interpretation { font-size: 14px; line-height: 1.9; margin-top: 18px; }
 .route-overview { display: flex; align-items: baseline; gap: 10px; }
-.route-note { font-size: 12px; color: var(--muted); }
+.route-note { font-size: 11px; color: var(--muted); margin-top: -2px; }
 .route-overview .subtle { margin: 0; }
 .route-overview .summary-time strong { font-size: 26px; margin: 0 2px 0 4px; }
 .map.route-map { height: clamp(320px, 58vh, 600px); height: clamp(320px, 58svh, 600px); margin-top: 14px; }
@@ -335,9 +335,15 @@ textarea.text-field { min-height: 120px; resize: vertical; }
 #arrive[data-near="true"] { box-shadow: 0 0 0 4px color-mix(in srgb, var(--orange) 45%, transparent); }
 
 /* ---- ホーム：表示の切り替え ---- */
-.prefs { display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); }
-.pref { border: 0; background: transparent; color: var(--muted); border-radius: 999px; min-height: 34px; padding: 4px 14px; font-size: 12px; font-weight: 600; }
-.pref[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+
+/* ホームの設定：上に名前、下に楕円の ON / OFF。言語の切り替えも同じ形で横に並べられる */
+.prefs { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 22px; }
+.pref { display: grid; justify-items: center; gap: 6px; }
+.pref-label { font-size: 12px; font-weight: 600; text-align: center; line-height: 1.3; }
+.pref-label small { display: block; font-size: 10px; font-weight: 400; color: var(--muted); }
+.seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--line); }
+.seg button { border: 0; background: transparent; color: var(--muted); border-radius: 999px; min-width: 54px; min-height: 32px; padding: 0 12px; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.seg button[aria-checked="true"] { background: var(--green); color: var(--on-green); box-shadow: 0 1px 4px rgba(0, 0, 0, .15); }
 
 /* ---- 歩行中：歩いた道の記録の状態と切り替え ---- */
 .track-row { display: flex; align-items: center; margin-top: 14px; }
