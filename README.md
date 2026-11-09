@@ -9,6 +9,13 @@ DevFest GDG Japan Hackathon 2026（テーマ：Own the why）向けの作品で�
 - **発表動画**：[動画のURL]
 - **チーム**：[チーム名] ／ [メンバー名]（画面）・[メンバー名]（サーバー・クラウド）
 
+<p align="center">
+  <img src="docs/screenshots/01-clarify.png" width="240" alt="気分をひとこと入力すると、AIが選択肢つきで1問だけ聞き返す画面">
+  <img src="docs/screenshots/02-route.png" width="240" alt="気分を感じられる場所を巡り、出発地に戻る一周のルート">
+  <img src="docs/screenshots/03-walk.png" width="240" alt="歩いている画面。次の場所までの距離、AIのヒント、着いたボタン">
+</p>
+<p align="center">① 1問だけ聞き返す　② 出発地に戻る一周のルート　③ 着いたかは自分で決める</p>
+
 ## なぜつくったか
 
 地図アプリは、行き先が決まっている人の道具です。「カフェ」「神社」と打てば答えてくれますが、名前を知らない場所は目的地にできず、「泣きたい」「にぎやかに過ごしたい」という気分からは探せません。
