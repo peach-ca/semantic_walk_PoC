@@ -9,12 +9,13 @@ DevFest GDG Japan Hackathon 2026（テーマ：Own the why, Build with Intent／
 - **デモ動画**：[動画のURL]
 - **チーム Roamy**：@peach-ca（画面）・@w4ter-fox（サーバー・クラウド）
 
-<p align="center">
-  <img src="docs/screenshots/01-clarify.png" width="240" alt="気分をひとこと入力すると、AIが選択肢つきで1問だけ聞き返す画面">
-  <img src="docs/screenshots/02-route.png" width="240" alt="気分を感じられる場所を巡り、出発地に戻る一周のルート">
-  <img src="docs/screenshots/03-walk.png" width="240" alt="歩いている画面。次の場所までの距離、AIのヒント、着いたボタン">
-</p>
-<p align="center">① 1問だけ聞き返す　② 出発地に戻る一周のルート　③ 着いたかは自分で決める</p>
+<table>
+  <tr>
+    <td align="center" width="33%"><img src="docs/screenshots/01-clarify.png" width="200" alt="気分をひとこと入力すると、AIが選択肢つきで1問だけ聞き返す画面"><br>① 1問だけ聞き返す</td>
+    <td align="center" width="33%"><img src="docs/screenshots/02-route.png" width="200" alt="気分を感じられる場所を巡り、出発地に戻る一周のルート"><br>② 出発地に戻る一周のルート</td>
+    <td align="center" width="33%"><img src="docs/screenshots/03-walk.png" width="200" alt="歩いている画面。次の場所までの距離、AIのヒント、着いたボタン"><br>③ 着いたかは自分で決める</td>
+  </tr>
+</table>
 
 ## 解決したい課題
 
@@ -161,6 +162,8 @@ uv run --env-file .env uvicorn api.main:app --reload --port 8080
 ```
 
 キーなしで画面だけを試すときは、`python3 -m http.server 8503 --bind 127.0.0.1 --directory web` で起動し、`http://localhost:8503/?mock=1` を開きます（固定の見本データで動き、AI や地図の API は呼びません）。詳しくは [web/README.md](web/README.md)。
+
+本番は Gemini（Vertex AI）だけを使います。`api/llm.py` には、5つの方式を比べた実験のために別の LLM へ切り替える分岐が残っていますが、本番のイメージ（`requirements.txt`）には入れていません。
 
 ### 試験
 
