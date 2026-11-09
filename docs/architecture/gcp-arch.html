@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>Roamy アーキテクチャ</title>
+<style>
+  :root{--ink:#202124;--muted:#5f6368;--line:#dadce0;--blue:#1a73e8;--gcp:#f1f3f4;}
+  *{box-sizing:border-box;margin:0}
+  body{width:1920px;height:1080px;position:relative;background:#fff;font-family:"Noto Sans CJK JP","Noto Sans JP","Yu Gothic UI","Yu Gothic","Meiryo",sans-serif;color:var(--ink)}
+  .abs{position:absolute}
+  h1{position:absolute;left:70px;top:48px;font-size:44px;font-weight:700}
+  .sub{position:absolute;left:70px;top:110px;font-size:22px;color:var(--muted)}
+  .gcp{background:var(--gcp);border-radius:8px}
+  .gcp-title{font-size:24px;font-weight:700;color:var(--muted)}
+  .grp{border:2px solid var(--line);border-radius:8px;background:#fafafa}
+  .grp-title{font-size:18px;font-weight:700;color:var(--muted);position:absolute;left:16px;top:10px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:6px;box-shadow:0 1px 3px rgba(60,64,67,.25);display:flex;gap:14px;padding:14px 16px;align-items:flex-start}
+  .icon{flex:none;width:46px;height:46px;border:2px dashed #bdc1c6;border-radius:8px;display:grid;place-items:center;font-size:11px;color:#9aa0a6}
+  .name{font-size:20px;font-weight:700;line-height:1.3}
+  .desc{font-size:16px;color:var(--muted);line-height:1.5;margin-top:4px}
+  .lbl{position:absolute;font-size:15px;color:var(--blue);background:#fff;padding:0 6px;border-radius:4px;white-space:nowrap}
+  .notes{border-left:4px solid var(--blue);padding:4px 0 4px 20px}
+  .notes h3{font-size:22px;margin-bottom:14px}
+  .notes li{font-size:18px;line-height:1.6;margin:0 0 10px 1.1em}
+</style></head><body>
+<h1>Google Cloud アーキテクチャ図</h1>
+<p class="sub">Roamy ・ 気分から、知らない京都を歩く</p>
+
+<div class="abs card" style="left:70px;top:430px;width:300px;flex-direction:column;gap:6px">
+  <div class="name">スマートフォンの<br>ブラウザ</div>
+  <div class="desc">Webアプリ（ホーム画面に追加可）<br>localStorage：散歩日記・足あと・続きから<br><b>サーバーには送らない</b></div>
+</div>
+
+<div class="abs card" style="left:70px;top:830px;width:300px;flex-direction:column;gap:6px">
+  <div class="name">OpenStreetMap（ODbL）</div>
+  <div class="desc">京都中心部 半径5kmを事前に抽出<br>約1万件 → places.json</div>
+</div>
+
+<div class="abs gcp" style="left:430px;top:160px;width:1050px;height:850px"></div>
+<div class="abs gcp-title" style="left:452px;top:174px">Google Cloud <span style="font-weight:400;font-size:18px">（asia-northeast1）</span></div>
+
+<div class="abs card" style="left:470px;top:400px;width:450px">
+  <div class="icon" data-icon="cloud_run">icon</div>
+  <div><div class="name">Cloud Run<span style="font-weight:400;color:var(--muted)">（FastAPI・1台）</span></div>
+  <div class="desc">画面の配信 ／ /api/clarify ／ /api/route<br>OSM候補（コンテナに同梱）<br>除外ルール・輪を組む・時間の補正<br>つらい言葉の判定・回数の上限</div></div>
+</div>
+
+<div class="abs card" style="left:1060px;top:220px;width:380px">
+  <div class="icon" data-icon="vertex_ai">icon</div>
+  <div><div class="name">Vertex AI<span style="font-weight:400;color:var(--muted)">（Gemini）</span></div>
+  <div class="desc">1問だけ聞き返す<br>候補から気分に合う番号を選ぶ</div></div>
+</div>
+
+<div class="abs grp" style="left:1040px;top:395px;width:420px;height:420px"></div>
+<div class="abs grp-title" style="left:1056px;top:405px">Google Maps Platform</div>
+<div class="abs card" style="left:1060px;top:445px;width:380px">
+  <div class="icon" data-icon="places">icon</div>
+  <div><div class="name">Places API (New)</div><div class="desc">実在・閉業・営業中を確認<br>結果はAIに渡さない</div></div>
+</div>
+<div class="abs card" style="left:1060px;top:570px;width:380px">
+  <div class="icon" data-icon="routes">icon</div>
+  <div><div class="name">Routes API</div><div class="desc">徒歩の道と時間（経由点つき）</div></div>
+</div>
+<div class="abs card" style="left:1060px;top:695px;width:380px">
+  <div class="icon" data-icon="maps_js">icon</div>
+  <div><div class="name">Maps JavaScript API</div><div class="desc">地図の表示（ブラウザ用キー）</div></div>
+</div>
+
+<div class="abs card" style="left:470px;top:860px;width:240px">
+  <div class="icon" data-icon="cloud_build">icon</div><div><div class="name">Cloud Build</div><div class="desc">コンテナを作る</div></div>
+</div>
+<div class="abs card" style="left:740px;top:860px;width:280px">
+  <div class="icon" data-icon="artifact_registry">icon</div><div><div class="name">Artifact Registry</div><div class="desc">イメージの保管</div></div>
+</div>
+<div class="abs card" style="left:1060px;top:860px;width:380px">
+  <div class="icon" data-icon="cloud_logging">icon</div><div><div class="name">Cloud Logging</div><div class="desc">ルートの時間・重なりを集計</div></div>
+</div>
+
+<div class="abs notes" style="left:1530px;top:220px;width:330px">
+  <h3>設計のポイント</h3>
+  <ul>
+    <li>気分はAI、事実は地図、時間はコード</li>
+    <li>Placesの結果はGeminiに渡さない</li>
+    <li>サーバー用キーとブラウザ用キーを分け、使えるAPIとサイトを制限</li>
+    <li>データベースなし。記録は利用者のブラウザだけ</li>
+    <li>Geminiが落ちてもルールだけで道を作る</li>
+  </ul>
+</div>
+
+<svg class="abs" style="left:0;top:0" width="1920" height="1080">
+  <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1a73e8"/></marker>
+  <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#9aa0a6"/></marker></defs>
+  <g stroke="#1a73e8" stroke-width="2.5" fill="none" marker-end="url(#a)">
+    <path d="M370 520 H466"/>
+    <path d="M920 440 H990 V290 H1056"/>
+    <path d="M920 500 H1056"/>
+    <path d="M920 540 H1000 V610 H1056"/>
+    <path d="M220 640 V790 H1000 V740 H1056"/>
+  </g>
+  <g stroke="#9aa0a6" stroke-width="2.5" fill="none" stroke-dasharray="7 6" marker-end="url(#g)">
+    <path d="M370 895 H466"/>
+    <path d="M710 905 H736"/>
+    <path d="M880 860 V562"/>
+  </g>
+</svg>
+<div class="lbl" style="left:380px;top:492px">HTTPS</div>
+<div class="lbl" style="left:930px;top:412px">気分・候補</div>
+<div class="lbl" style="left:930px;top:472px">確認</div>
+<div class="lbl" style="left:930px;top:546px">経由点</div>
+<div class="lbl" style="left:560px;top:778px">地図を読み込む</div>
+<div class="lbl" style="left:380px;top:868px;color:#5f6368">同梱</div>
+<div class="lbl" style="left:890px;top:752px;color:#5f6368">デプロイ</div>
+<script>
+document.querySelectorAll('[data-icon]').forEach(box=>{
+  const key=box.dataset.icon, img=new Image(); img.width=46; img.height=46; img.alt='';
+  const tryExt=exts=>{ if(!exts.length) return; img.onerror=()=>tryExt(exts.slice(1)); img.src=`icons/${key}.${exts[0]}`; };
+  img.onload=()=>{ box.replaceChildren(img); box.style.border='0'; };
+  tryExt(['svg','png']);
+});
+</script>
+</body></html>
