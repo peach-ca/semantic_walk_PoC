@@ -87,6 +87,9 @@ test('振り返り画面で終了をキャンセルしても入力途中のメ�
 test('通常の最後まで歩く操作は完了として保存する', async()=>{
   const t=await setup();await t.walk();
   for(let i=0;i<2;i++){await t.click('arrive');await t.submit('reflect-form');}
-  assert.ok(t.app.querySelector('#again'),'完了画面');
+  assert.ok(!t.app.querySelector('#again'),'最後の場所の直後は終了しない');
+  assert.match(t.app.innerHTML,/帰り道/);
+  await t.click('arrive');
+  assert.ok(t.app.querySelector('#again'),'出発地に戻ってから完了画面');
   const [w]=t.walks();assert.equal(w.status,'completed');assert.equal(w.places.length,2);assert.ok(!t.memory.has('yorimichi:active'));
 });
