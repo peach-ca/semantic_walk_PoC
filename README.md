@@ -1,210 +1,189 @@
-# Roamy（ローミー）— 気分から、知らない京都を歩く
+# Roamy（ローミー）— 気分で、知らない近所を歩く
 
 > 知らない場所は、目的地にできない。だから、気分を目的地にする。
 
-気分をひとこと入力すると、AIが1問だけ聞き返し、その気分を感じられる「いま開いている実在の場所」をつないで、指定した時間で一周できる散歩ルートをつくるWebアプリです。
-DevFest GDG Japan Hackathon 2026（テーマ：Own the why）向けの作品です。
+気分をひとこと入力すると、AI が1問だけ聞き返し、その気分を感じられる **いま開いている実在の場所** を巡って、出発地に戻ってくる一周の散歩ルートをつくる Web アプリです。
+DevFest GDG Japan Hackathon 2026（テーマ：Own the why, Build with Intent／カテゴリ：観光）の提出作品です。
 
-- **デモ**：https://walk-780700843334.asia-northeast1.run.app （2026-11-14まで公開）
-- **発表動画**：[動画のURL]
-- **チーム**：[チーム名] ／ [メンバー名]（画面）・[メンバー名]（サーバー・クラウド）
+- **デモ**：https://walk-780700843334.asia-northeast1.run.app （2026-11-14 まで公開。対応エリアは京都市中心部）
+- **デモ動画**：[動画のURL]
+- **チーム Roamy**：@peach-ca（画面）・@w4ter-fox（サーバー・クラウド）
 
-## なぜつくったか
+<p align="center">
+  <img src="docs/screenshots/01-clarify.png" width="240" alt="気分をひとこと入力すると、AIが選択肢つきで1問だけ聞き返す画面">
+  <img src="docs/screenshots/02-route.png" width="240" alt="気分を感じられる場所を巡り、出発地に戻る一周のルート">
+  <img src="docs/screenshots/03-walk.png" width="240" alt="歩いている画面。次の場所までの距離、AIのヒント、着いたボタン">
+</p>
+<p align="center">① 1問だけ聞き返す　② 出発地に戻る一周のルート　③ 着いたかは自分で決める</p>
 
-地図アプリは、行き先が決まっている人の道具です。「カフェ」「神社」と打てば答えてくれますが、名前を知らない場所は目的地にできず、「泣きたい」「にぎやかに過ごしたい」という気分からは探せません。
-引っ越してきた人も、旅で来た人も、その街の初心者です。Roamyは名所ではなく気分で場所を選びます。静けさを求めれば静かな場所へ、にぎやかさを求めればにぎやかな場所へ案内します。
+## 解決したい課題
 
-## 仕組み（気分はAIに、事実は地図に、時間はコードに）
+人は、名前を知っている場所にしか行けません。だから旅行者は同じ名所に集まり、住んでいる人は近所の場所を知らないままになります。
+
+| 2025年の数字 | 人数 | 出典 |
+|---|---|---|
+| 日本を訪れた外国人 | 約4,268万人（暫定値） | 日本政府観光局（JNTO）訪日外客数 |
+| 新しく来日した留学生 | 約17.6万人（速報値） | 出入国在留管理庁「令和7年の出入国在留管理業務の状況」在留資格「留学」の新規入国者 |
+| 国内で別の市区町村に引っ越した人 | 約519万人 | 総務省統計局「住民基本台帳人口移動報告 2025年結果」 |
+
+3つの数字は比べたり足したりするものではなく、「その街の初心者」の例です。初心者が知っている名前は名所だけで、地図アプリは「カフェ」「神社」と打てば答えてくれますが、「泣きたい」「にぎやかに過ごしたい」という気分からは探せません。
+
+Roamy は名前ではなく気分で行き先を決めます。遠くの名所ではなく、まだ知らない近所を歩いて楽しむ、マイクロツーリズムの入口をつくることが目的です。静けさを求めれば静かな場所へ、にぎやかさを求めればにぎやかな場所へ案内します。
+
+## 使い方
+
+1. 気分をひとこと入力する（例：「ワクワクを感じたい」）
+2. AI の聞き返しに、選択肢・自分の言葉・「おまかせ」のどれかで答える。人の多さの好みもここで決まる
+3. 歩く時間（30 / 45 / 60分）と出発地を選び、ルートを作る。合わない場所は「外す」で除いて作り直せる
+4. 歩く。次の場所から50m以内に来ると知らせるが、自動では進まない。着いたかは本人が「着いた」で決める
+5. 「求めていた気分は、感じられた？」に、ひとことメモを残す
+6. 最後の場所のあとは、出発地への帰り道を案内する。戻ったら「戻った」で終わり
+7. 散歩日記と足あとマップで、気分・立ち寄った場所・メモ・歩いた道を見返す
+
+時間は **歩く時間だけ** の目安です（立ち寄った場所で過ごす時間は含みません）。
+
+## 仕組み：気分は AI に、事実は地図に、時間はコードに
 
 ![Google Cloud アーキテクチャ図](docs/architecture/gcp-arch.png)
 
-- OpenStreetMap由来の候補（京都中心部 約1万件）から、Gemini（Vertex AI）が気分に合う候補を**番号で**選ぶ。
-- 実在・閉業・営業中かは Places API で確認する。**Placesの結果はAIに渡さない。**
-- 除外ルール、順番、時間合わせはコードで決め、Routes API で徒歩の道と時間を出す。行きと帰りの道が重なれば回り道を足す。
-- Cloud Run 1台。データベースは持たず、記録は利用者のブラウザにだけ残す。
+1回のルート作成は、次の順で進みます。
 
-## 設計判断の記録（ADR）
+| | 担当 | すること |
+|---|---|---|
+| 1 | コード | 出発地と指定時間から、OpenStreetMap 由来の候補（京都中心部 約1万件）を近く・中くらい・遠くの3つの距離帯に分け、最大150件を Gemini に渡す |
+| 2 | Gemini（Vertex AI） | 候補の中から気分に合う場所を **番号で** 選び、その場所で何を感じられそうかを30字以内で書く（歴史や営業時間などの事実は書かせない） |
+| 3 | コード | 私有地らしい名前（マンション、アパート、寮など）、日没後の屋外・寺社・史跡、混雑を避けたい人には有名所19か所の200m以内を外す |
+| 4 | コード | 直線距離から徒歩時間を見積もり、指定時間に収まる回る場所と順番を決める |
+| 5 | Places API | 回る場所だけ、実在・閉業・営業中かを確かめ、学校・病院・ホテルなども外す。外れたら4に戻って組み直す。**結果は Gemini に渡さない** |
+| 6 | Routes API | 決めた順番で、実際の徒歩ルートと時間を出す |
+| 7 | コード | 行きと帰りの道が2割以上重なれば回り道を足し、時間が1割以上ずれたら見積もりを直して、6で測り直す |
 
-- [ADR 0001](docs/adr/0001-place-selection.md)：場所の選び方。5つの方式を同じ条件で比べ、OSM → Gemini → Places で確認する方式を採用した。
-- [ADR 0002](docs/adr/0002-walk-records-in-browser.md)：サーバーDBを使わず、ブラウザに記録を置く。
+- Gemini が使えないときは、ルールだけで場所を選んでルートを作ります（応答に `fallback: true`）。
+- 外部 API の呼び出しには上限があります。Places は1ルート最大8か所、Routes は1ルート最大4回です。
 
----
+## なぜこの設計にしたか（Own the why）
 
-以下は開発者向けの情報です。対象エリアは京都市中心部（北緯35.003・東経135.765から半径約5km）を前提にしています。場所データは別途生成が必要です。
+### AI に任せる範囲を、あえて狭くした
 
-## このリポジトリの読み方
+間違えると歩く人が困ることは、AI に任せませんでした。
 
-- **このREADME**：全体像、起動、サーバー設定、API、デプロイの入口。
-- [web/README.md](web/README.md)：画面開発、キー不要の見本、Googleマップ接続、画面側の確認手順。
-- [web/TRACKING.md](web/TRACKING.md)：位置履歴の品質・保存上限、地図表示、プライバシーの詳細。
-- [web/RESTART.md](web/RESTART.md)：途中終了、新しい散歩、再読込後の再開。
-- [ADR 0002](docs/adr/0002-walk-records-in-browser.md)：サーバーDBを使わず、ブラウザに記録を置く判断。
+| 判断 | AI に任せた場合 | 採用した方法 |
+|---|---|---|
+| 気分に合う場所を選ぶ | あいまいな言葉を読める | **Gemini に任せる**（Gemini が止まったときはルールで代わりに選ぶ） |
+| 場所の名前 | 存在しない場所を作る恐れがある | 番号で選ばせるので、候補にない場所は出ない |
+| 営業中か | 学習時点の古い知識で答える | Places API で今の状態を確かめる |
+| 私有地・夜・混雑 | 指示しても守ったか確かめられない | コードで必ず同じ判定をする（ただし単語の一覧と名簿なので漏れはある） |
+| 時間と順番 | 実際の徒歩時間を知らない | Routes API で測り、コードで組み直す |
 
-`app.py`（Streamlit）と `poc.py` は別のローカルPoCです。`picker.py`、`experiment.py`、`method_c.py`、`eval_picker.py` は選定・比較実験用です。現在のWebアプリの起動には使わず、実験の設定・制限を本番APIの仕様と混同しないでください。
+その結果、Routes API の徒歩時間で測ると、30分の指定で30〜33分、60分の指定で62〜66分、行きと帰りの道の重なりは0〜18%でした（各3回の計測）。
 
-## まず見本を動かす（APIキー・場所データ不要）
+### 場所の選び方は、5つの方式を同じ条件で比べた
 
-以下のコマンドはリポジトリ直下で実行します。Python 3が必要です。
+2地点 × 4つの気分で試しました（gemini-3.5-flash）。回数が少ないので、傾向として見てください。
 
-```bash
-python3 -m http.server 8503 --bind 127.0.0.1 --directory web
+| 方式 | 生成時間 | 結果 |
+|---|---|---|
+| A. Maps グラウンディング | 17〜44秒 | 9回中2回、地図を参照しなかった |
+| B. Places の結果を Gemini に渡す | — | 精度は最良。地図の内容を AI に渡す点に規約上の懸念があり不採用 |
+| C. AI が検索語を作り Places で探す | 約9秒 | 清水寺本堂のような有名所が混ざった |
+| **D. OSM → Gemini → Places で確認（採用）** | **8〜15秒** | 気分に合う場所を、有名かどうかに関わらず安定して拾えた |
+| E. OSM ＋ グラウンディング | ＋6〜8秒 | 8回中0回、地図を参照しなかった |
+
+道の計算は、どの方式でも自前の歩道データではなく Routes API を使います（正確で、サーバーが軽いため）。
+
+### Google の技術を選んだ理由
+
+| 技術 | 使い方 | 選んだ理由 |
+|---|---|---|
+| Cloud Run | 画面（`web/`）と API（`api/`）を1つのサービスで配信 | 1つのコンテナで画面と API をまとめられる。`--max-instances 1` で回数制限をメモリで数え、費用の上限を読みやすくした |
+| Vertex AI（Gemini） | 気分の解釈、聞き返し、場所の選択 | サービスアカウントで呼べるので API キーを置かずに済む。チームに支給された Cloud クレジットを使える |
+| Places API (New) | 実在・営業中の確認 | 地図データ（OSM）だけでは今営業しているか分からないため |
+| Routes API | 徒歩ルートと時間 | 実際の道で時間を測れるので、指定時間どおりのルートを組める |
+| Maps JavaScript API | 地図の表示 | ルートと現在地をスマホで見せるため |
+
+## 安全とプライバシー
+
+- **つらい言葉**（「死にたい」など）が入ったら、AI を呼ぶ前にコードで止め、ルートは作らずに厚生労働省「まもろうよ こころ」を案内します。
+- **入ってはいけない場所を出さない**：私有地らしい場所、学校・病院など、閉まっている場所、日没後の屋外・寺社・史跡を外します。京都では観光客が私道に入り込むことが問題になっています。
+- **人の多さは本人が選ぶ**：聞き返しで混雑を避けたいと答えた人にだけ、有名所の周りを外します。
+- **歩きスマホを促さない**：最初に「画面を見るときは立ち止まる」と案内します。到着は自動では進めず、本人が決めます。
+- **散歩の記録はサーバーに集めない**：データベースは持ちません（[ADR 0002](docs/adr/0002-walk-records-in-browser.md)）。散歩日記と歩いた道は、利用者のブラウザ（localStorage）にだけ保存します。
+  - 「歩いた道と記録をこのブラウザに保存する」は **初期値オン** です。歩き始める前に外せば、日記と歩いた道は保存しません。歩いている途中で記録だけを止める操作はありません。
+  - 散歩日記から1件ずつ、またはすべてを消せます。歩いた道も一緒に消えます。
+  - 歩いた道は1回最大1,200点、全体で最大20区間・6,000点、7日より古いものはアプリを開いたときに消します。
+  - 保存を外しても、途中から再開するための一時状態（出発地・ルート・気分など）は別に保存され、12時間で破棄します。
+- **キーと回数の上限**：サーバー用とブラウザ用のキーを分け、使える API と送り元を制限しています。ルート作成は全体で1日30回・1つの IP から1時間6回、聞き返しは1日200回・1時間20回までです。
+
+## 限界と次の一歩
+
+| いまの限界 | 次の一歩 |
+|---|---|
+| 対応は京都市中心部（半径約5km）だけ | OSM のデータを差し替えて、ほかの街に広げる |
+| 画面は日本語だけ | 英語に対応する |
+| 行きたくない場所は外せるが、行きたい場所は追加できない（サーバー側は対応済みで、画面が未対応） | 指定した場所をルートに含められるようにする |
+| ヒントは AI の推測なので、外れることがある | 場所の説明を用意し、それを根拠に選ばせる |
+| 多くの人が使えば、今度は穴場に人が集まるかもしれない | 同意を得た記録で人の流れを見て、集中しないルートにする（データベースを持つのはそのとき） |
+| 日没後は屋外と寺社を外すため、候補が減る | — |
+| 記録は同じ端末・同じブラウザにだけ残る | — |
+
+## 設計判断の記録
+
+- [ADR 0002](docs/adr/0002-walk-records-in-browser.md)：サーバーの DB を使わず、記録をブラウザに置く
+
+## 開発者向け
+
+### 構成
+
+```
+api/        FastAPI（main.py, selector.py=Gemini, places_check.py, route.py, safety.py, osm_data.py, llm.py, fallback.py）
+web/        画面（ビルド不要の HTML / CSS / JavaScript、PWA）
+scripts/    build_osm_json.py（OSM → api/data/places.json）
+docs/       アーキテクチャ図、ADR、画面の画像
+tests/      サーバーの試験（pytest）
+web/tests/  画面の試験（Node.js）
 ```
 
-[http://localhost:8503/?mock=1](http://localhost:8503/?mock=1) を開きます。終了はControl+C。
-見本は固定JSONを読み、Gemini・Places・Routes・自分たちのAPIを呼びません。
-`web/config.js` にブラウザ用MapsキーがあるとGoogleマップは読み込みます。キー未設定なら模式図になります。
-操作・GPSの試し方は [web/README.md](web/README.md) を参照してください。
+### ローカルで動かす
 
-## 通常モードをローカルで動かす
-
-必要なもの：Python 3.12以上（`.python-version` は3.12）、uv、Google CloudのプロジェクトとVertex AIの認証、サーバー用Places/Routesキー、ブラウザ用Maps JavaScriptキー。
-
-### 1. 依存関係と設定
+必要なもの：Python 3.12 以上、[uv](https://docs.astral.sh/uv/)、Vertex AI を使える Google Cloud プロジェクト、サーバー用キー（Places API・Routes API）、ブラウザ用キー（Maps JavaScript API）。
 
 ```bash
 uv sync --locked
-cp .env.example .env
-cp web/config.example.js web/config.js
-```
+cp .env.example .env                       # 自分のプロジェクトに合わせて編集
+cp web/config.example.js web/config.js     # ブラウザ用キーだけを書く
+gcloud auth application-default login
 
-`.env` を自分のプロジェクトに合わせて編集し、ローカルのVertex AI認証には `gcloud auth application-default login` を実行します。
-`.env.example` は現在のWebアプリ用のひな形です。`web/config.js` には **ブラウザ用キーだけ** を設定します。
-両ファイルはGit管理外です。ブラウザ用キーの制限は [web/README.md](web/README.md#googleマップと実apiに接続する) を参照してください。
-
-主な環境変数（既定値は実装に基づく）：
-
-- `GOOGLE_GENAI_USE_VERTEXAI=true`、`GOOGLE_CLOUD_PROJECT`、`GOOGLE_CLOUD_LOCATION=global`：Vertex AI接続用。
-- `GEMINI_MODEL`：未設定時 `gemini-3.5-flash`。`api/llm.py` は出力検証失敗や429/503等で再試行し、`gemini-3.1-flash-lite` も試します。これらはコード内のモデル名で、利用可能性を保証するものではありません。
-- `MAPS_API_KEY`：サーバー用。Places API (New)・Routes APIに制限します。未設定時、Routesは直線距離に基づく概算になりますが、Placesは既定で有効なので、キー不要の開発には `PLACES_CHECK=off` も必要です。
-- `PLACES_CHECK`：既定 `on`。`off` は開発用で、営業未確認の店も注意付きで残します。
-- `ROUTE_DAILY_LIMIT=30`、`ROUTE_PER_IP_HOUR=6`：ルート要求の全体日次／IP別時間上限。
-- `OSM_FILE`、`OSM_RIVER_FILE`：生成元のOSM XML。下記を参照。
-- `PLACES_JSON`：サーバーが読むJSONのパス。既定 `api/data/places.json`。
-
-`LLM_PROVIDER=openai` は比較実験用の分岐です。通常運用は既定の `gemini` を使用します。
-
-### 2. 場所データを生成
-
-OSM XMLと生成済みJSONは同梱していません。京都の抽出データを `data/area.osm` に用意した場合：
-
-```bash
+# 場所データを作る（OSM の抽出データが必要。生成物はリポジトリに含めていない）
 uv run --env-file .env python scripts/build_osm_json.py
-```
 
-ひな形では `OSM_FILE=data/area.osm`、`OSM_RIVER_FILE=data/area.osm` を指定しています。
-環境変数なしでスクリプトを実行すると、場所の入力は `data/area_poi.osm`、川の入力は `data/area.osm`（なければ場所の入力）です。
-出力は `api/data/places.json`。川沿いの点も候補に加えます。データ更新後はサーバーを再起動してください（読込結果をキャッシュします）。
-
-取得補助の `get_osm.sh` は `osmium`・`wget` とGNU系コマンドを前提にしたスクリプトです。
-これらを用意したLinux環境では `bash get_osm.sh 35.0030 135.7650 5 kansai` で周辺を抽出できます。
-地方データの初回取得は大きく、`.env` の `OSM_FILE` / `OSM_WALK_FILE` を書き換えます。macOSでは `apt-get` や `sed -i` がそのまま動かないため、別途抽出したXMLを指定してください。
-現在のFastAPI版は `OSM_WALK_FILE` を使いません。
-
-### 3. 起動
-
-```bash
 uv run --env-file .env uvicorn api.main:app --reload --port 8080
+# http://localhost:8080 を開く
 ```
 
-[http://localhost:8080](http://localhost:8080) を開きます。画面とAPIを同一サーバーで配信します。
-`GET /api/health` の `places` で読込件数を確認できます。JSONがなければhealthとルート生成は失敗します。
-画面だけの静的サーバーでは通常モードのAPIは動きません。
+キーなしで画面だけを試すときは、`python3 -m http.server 8503 --bind 127.0.0.1 --directory web` で起動し、`http://localhost:8503/?mock=1` を開きます（固定の見本データで動き、AI や地図の API は呼びません）。詳しくは [web/README.md](web/README.md)。
 
-## 使い方と現在の動作
-
-1. 気分を入力し、聞き返しの選択肢・自由記述・おまかせで方向を決める。
-2. 歩く時間（画面は30 / 45 / 60分）と出発地を選び、ルートを作る。
-3. 場所を「外す」とOSM IDを除外して再検索する。
-4. 「歩いた道と記録をこのブラウザに保存する」（初期値オン）を確認し、歩きはじめる。
-5. 近くに来た通知を目安に、本人が「着いた」を押す。自動では到着画面へ進まない。
-6. ひとことメモを記録するか、その場所の記録を飛ばして次へ進む。5段階評価は現在の画面にはない。
-7. 散歩日記・足あとマップで記録を見返す。途中終了や新しい散歩への切替もできる。
-
-所要時間は **歩行のみ** の目安です。`api/route.py` の `STAY_MIN=0` で、立ち寄る時間は含みません。
-再読込後は12時間以内の途中状態から、利用者の操作で再開できます。GPSは自動再開しません。
-詳細は [web/RESTART.md](web/RESTART.md) を参照してください。
-
-## 仕組みと制限
-
-```mermaid
-flowchart LR
-  U[ブラウザ] -->|気分・出発地・時間| R[FastAPI]
-  O[OSM由来 places.json] --> R
-  R -->|OSM候補 最大150件| G[Gemini]
-  G -->|候補番号とヒント| R
-  R --> F[静的な除外・順序と時間の概算]
-  F --> P[Placesで確認・不足分を補充]
-  P --> T[Routesで徒歩ルート・必要時に再計算]
-  T --> U
-  U --> M[Maps JavaScript API]
-  U --> L[ブラウザ内の散歩記録・位置履歴]
-```
-
-- Geminiには気分とOSM候補を渡し、候補番号を検証します。Placesの結果は渡しません。LLM失敗時は定型の聞き返し／ルールによる場所選びへ切り替え、応答に `fallback: true` を付けます。
-- 私有地らしい名前、暗い時間の屋外・寺社・史跡、混雑回避時の有名所と周辺200mなどをコードで除外します。夜間判定は京都の月別概算です。
-- Places確認は1ルート要求で最大8候補。川沿いは照会せず、キャッシュ命中時も外部通信しません。確認できない店などは除外しますが、日中の非店舗は警告付きで残ることがあり、全地点の実在・営業・立入可否を保証しません。
-- APIの `include_ids` で明示指定した地点には通常の除外判定を適用しない分岐があります。現在の画面は空配列を送ります。
-- Routesは重複する道を減らすため1計算につき最大2回、時間の補正で計算をもう1度行う場合があり、**1ルート要求につき最大4回** 呼びます。キーなしの概算線は実際の道路ではありません。
-- `/api/route` は既定で全体30回/日・IP別6回/時、`/api/clarify` は全体200回/日・IP別20回/時。日次はJSTで切替。カウンターはプロセス内メモリで、再起動や複数プロセス・インスタンスをまたぐ厳密な上限ではありません。
-
-## 保存とプライバシー
-
-サーバーに散歩記録用DB・保存APIはありません。出発地はルート要求でサーバーに送り、経路計算にも使います。
-歩行中の位置履歴・訪問メモは自分たちのサーバーへ送信しません。Googleマップ表示ではSDKによる通信が発生します。
-
-ブラウザのlocalStorageには次を保存します。
-
-- 同意、除外OSM ID（直近200件）、過去の道の表示設定。
-- 保存を選んだ散歩日記（最大100回）：気分、訪問地点・座標、時刻、メモ、状態、経過秒数。
-- 保存を選んだ位置履歴：1区間最大1,200点、全体最大20区間・6,000点、最大7日。アプリ起動・保存時に整理します。
-- **途中再開用の一時状態 `yorimichi:active`**：出発地、気分、ルート、進行状況など。日記・位置履歴の保存チェックを外しても保存されます。12時間経過した状態は次の読込時に破棄し、終了・新規開始時にも消します。`maps_uri` は保存しませんが、polylineや地点情報を含みます。
-
-チェックを外せば一切保存しない、という動作ではありません。保存を避けたい利用でこの一時状態が残る点は、現在の実装上の制約です。
-日記から個別／一括削除でき、対応する位置履歴も消します。すべての設定・一時状態を消すにはブラウザのサイトデータを削除します。
-保存先は端末・ブラウザ・オリジンごとに別で、恒久保存や端末間同期はありません。詳細は [web/TRACKING.md](web/TRACKING.md)。
-
-## APIの入口
-
-- `GET /api/health` → `{ok, places}`。
-- `POST /api/clarify`：`{mood}` → `{question, options: [{label, crowd}], blocked}`。
-- `POST /api/route`：`{mood, preference?, crowd?, lat, lon, minutes?, exclude_ids?, include_ids?}` → 解釈、地点、polyline、歩行／滞在／合計時間、区間、距離、帰属など。
-
-入力の型と上限は [api/main.py](api/main.py) のPydanticモデルおよび、起動中の `/docs` が正本です。
-`crowd` は `avoid` / `neutral` / `ok`。APIの時間指定は15〜120分（既定60分）で、画面の初期値45分とは別です。
-コードに定義した危機的な語に一致するとLLM呼び出し前に止め、`blocked.message` を返します。
-通常エラーは `{error}` とHTTPステータス（入力422、候補不足404、回数上限429、経路作成失敗502など）です。
-
-## 確認
+### 試験
 
 ```bash
-uv run --locked pytest -q
-node --test web/tests/tracking.test.mjs web/tests/walk-restart.test.mjs
+uv run --locked pytest -q                  # サーバー 45件
+node --test web/tests/*.test.mjs           # 画面 19件
 ```
 
-Python試験にはルール・経路計算と旧Streamlit PoCの試験が含まれます。JavaScript試験は位置履歴・途中終了などを最小DOMと仮の位置データで確認します。
-これらは実API接続、ブラウザ描画、実機GPSの検証を代替しません。画面の手動確認は [web/README.md](web/README.md#確認手順) を参照してください。
+試験は実際の API・ブラウザの描画・実機の GPS を使いません。
 
-## Cloud Runへのデプロイ
-
-`Dockerfile` は `requirements.txt` でAPI用依存関係を入れ、`api/` と `web/` をコピーします。Streamlit PoCは配信しません。
-先にローカルで `api/data/places.json` と `web/config.js` を用意し、Vertex AIを利用できる実行サービスアカウント・必要なAPI・キーを設定してください。
+### デプロイ（Cloud Run）
 
 ```bash
 gcloud run deploy walk --source . --region asia-northeast1 \
   --allow-unauthenticated --max-instances 1 --memory 512Mi \
-  --set-env-vars 'GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=<project>,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,ROUTE_DAILY_LIMIT=30,ROUTE_PER_IP_HOUR=6,MAPS_API_KEY=<server-key>'
+  --set-env-vars 'GOOGLE_GENAI_USE_VERTEXAI=true,GOOGLE_CLOUD_PROJECT=<project>,GOOGLE_CLOUD_LOCATION=global,GEMINI_MODEL=gemini-3.5-flash,ROUTE_DAILY_LIMIT=30,MAPS_API_KEY=<server-key>'
 ```
 
-プレースホルダーは実値に置き換えます。`.env` は自動で読み込まれず、アップロード対象外です。
-`.gcloudignore` は `.gitignore` を取り込まないため、Git管理外の `api/data/places.json` と `web/config.js` も、ローカルに存在すればアップロード対象です。
-`gcloud meta list-files-for-upload` で含まれることを確認してください。Gitのチェックアウトだけでは両ファイルは揃いません。
-`--max-instances 1` はメモリ内回数制限を使うための設定ですが、費用の厳密な上限保証にはなりません。
+`api/data/places.json` と `web/config.js` は Git に入っていないため、デプロイ前に手元で用意します。
 
-デモURL：[Roamy（Cloud Run）](https://walk-780700843334.asia-northeast1.run.app)。2026-11-14まで公開し、その後サービスとキーを削除します。
+## データとライセンス
 
-## データと帰属
-
-- 場所データ：© OpenStreetMap contributors（[ODbL](https://www.openstreetmap.org/copyright)）。
-- 地図・場所確認・経路：Google Maps Platform（Maps JavaScript API / Places API / Routes API）。
-- 技術判断：[docs/adr/](docs/adr/)。
-- localStorageのキー名（`yorimichi:`）は旧名「よりみち」の名残です。保存済みの記録を引き継ぐため変えていません。
+- 場所データ：© OpenStreetMap contributors（[ODbL](https://www.openstreetmap.org/copyright)）
+- 地図・場所の確認・ルート：Google Maps Platform（Maps JavaScript API / Places API / Routes API）
+- 統計：日本政府観光局（JNTO）、出入国在留管理庁、総務省統計局（上の表のとおり）
+- localStorage のキー名（`yorimichi:`）は、旧名「よりみち」の名残です。保存済みの記録を引き継ぐため変えていません。
