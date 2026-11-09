@@ -6,7 +6,6 @@
 DevFest GDG Japan Hackathon 2026（テーマ：Own the why, Build with Intent／カテゴリ：観光）の提出作品です。
 
 - **デモ**：https://walk-780700843334.asia-northeast1.run.app （2026-11-14 まで公開。対応エリアは京都市中心部）
-- **デモ動画**：[動画のURL]
 - **チーム Roamy**：@peach-ca（画面）・@w4ter-fox（サーバー・クラウド）
 
 <table>
